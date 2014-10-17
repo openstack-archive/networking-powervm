@@ -1,0 +1,5 @@
+/build/
+.testrepository
+.tox/
+neutron_powervm.egg-info/
+*.pyc
