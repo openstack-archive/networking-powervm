@@ -243,8 +243,7 @@ Documentation will be contributed which identifies how to set up and configure
 the agent.  This will include configuring the dependencies specified above.
 
 Documentation will be done on wiki, specifically at a minimum to the following
-page: http://docs.openstack.org/icehouse/install-guide/install/yum/content/
-      neutron-ml2-compute-node.html
+page: http://docs.openstack.org/icehouse/install-guide/install/yum/content/neutron-ml2-compute-node.html
 
 Interlock will be done with the OpenStack documentation team.
 
