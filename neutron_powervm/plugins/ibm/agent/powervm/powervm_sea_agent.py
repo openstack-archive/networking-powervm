@@ -16,9 +16,14 @@
 #
 # @author: Drew Thorstensen, IBM Corp.
 
+import eventlet
+eventlet.monkey_patch()
+
 from oslo.config import cfg
 
+from neutron.agent.common import config as a_config
 from neutron.agent import rpc as agent_rpc
+from neutron.common import config as n_config
 from neutron.common import constants as q_const
 from neutron.common import rpc as n_rpc
 from neutron.common import topics
@@ -26,8 +31,23 @@ from neutron import context as ctx
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import loopingcall
 
+import sys
+import time
+
 
 LOG = logging.getLogger(__name__)
+
+
+agent_opts = [
+    cfg.IntOpt('polling_interval', default=2,
+               help=_("The number of seconds the agent will wait between "
+                      "polling for local device changes."))
+]
+
+
+cfg.CONF.register_opts(agent_opts, "AGENT")
+a_config.register_agent_state_opts_helper(cfg.CONF)
+a_config.register_root_helper(cfg.CONF)
 
 
 class SharedEthernetPluginApi(agent_rpc.PluginApi):
@@ -90,6 +110,7 @@ class SharedEthernetNeutronAgent():
             'configurations': {},
             'agent_type': 'PowerVM Shared Ethernet agent',
             'start_flag': True}
+        self.setup_rpc()
 
     def setup_rpc(self):
         '''
@@ -139,10 +160,24 @@ class SharedEthernetNeutronAgent():
         except Exception:
             LOG.exception(_("Failed reporting state!"))
 
+    def rpc_loop(self):
+        '''
+        Runs a check periodically to determine if new ports were added or
+        removed.  Will call down to appropriate methods to determine correct
+        course of action.
+        '''
+        # TODO(thorst) implement
+        while True:
+            time.sleep(1)
+
 
 def main():
-    agent = SharedEthernetNeutronAgent()
+    # Read in the command line args
+    n_config.init(sys.argv[1:])
+    n_config.setup_logging()
 
+    # Build then run the agent
+    agent = SharedEthernetNeutronAgent()
     LOG.info(_("Shared Ethernet Agent initialized and running"))
     agent.rpc_loop()
 

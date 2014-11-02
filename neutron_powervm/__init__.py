@@ -16,4 +16,4 @@
 import gettext
 
 
-gettext.install('neutron', unicode=1)
+gettext.install('neutron-powervm', unicode=1)
