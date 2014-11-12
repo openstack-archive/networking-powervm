@@ -31,6 +31,8 @@ from neutron import context as ctx
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import loopingcall
 
+from neutron_powervm.plugins.ibm.agent.powervm import utils as pvm_utils
+
 import sys
 import time
 
@@ -41,13 +43,25 @@ LOG = logging.getLogger(__name__)
 agent_opts = [
     cfg.IntOpt('polling_interval', default=2,
                help=_("The number of seconds the agent will wait between "
-                      "polling for local device changes."))
+                      "polling for local device changes.")),
+    # TODO(thorst) Remove when Neo is running on locally
+    cfg.StrOpt('hmc_host', default="9.114.181.230",
+               help=_("The HMC that is managing the system.")),
+    cfg.StrOpt('hmc_user', default="hscroot",
+               help=_("The user id to use for the HMC communication.")),
+    cfg.StrOpt('hmc_pass', default="Passw0rd",
+               help=_("The password to the HMC User ID.")),
+    cfg.StrOpt('system_uuid', default="726e9cb3-6576-3df5-ab60-40893d51d074",
+               help=_("The system UUID that the agent should operate "
+                      "against."))
 ]
 
 
 cfg.CONF.register_opts(agent_opts, "AGENT")
 a_config.register_agent_state_opts_helper(cfg.CONF)
 a_config.register_root_helper(cfg.CONF)
+
+ACONF = cfg.CONF.AGENT
 
 
 class SharedEthernetPluginApi(agent_rpc.PluginApi):
@@ -65,7 +79,7 @@ class SharedEthernetRpcCallbacks(n_rpc.RpcCallback):
     #  1.0 Initial version
     #  1.1 Support Security Group RPC
     #  1.2 Support DVR (Distributed Virtual Router) RPC
-    RPC_API_VERSION = '1.0'
+    RPC_API_VERSION = '1.1'
 
     def __init__(self, agent):
         '''
@@ -111,6 +125,16 @@ class SharedEthernetNeutronAgent():
             'agent_type': 'PowerVM Shared Ethernet agent',
             'start_flag': True}
         self.setup_rpc()
+
+        # Create the utility class that enables work against the Hypervisors
+        # Shared Ethernet NetworkBridge.
+        self.conn_utils = pvm_utils.NetworkBridgeUtils(ACONF.hmc_host,
+                                                       ACONF.hmc_user,
+                                                       ACONF.hmc_pass,
+                                                       ACONF.system_uuid)
+
+        # Attempt a list of the Network Bridges to validate connection
+        self.conn_utils.list_bridges()
 
     def setup_rpc(self):
         '''

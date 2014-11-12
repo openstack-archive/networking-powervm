@@ -21,20 +21,24 @@ from oslo.config import cfg
 import mock
 
 from neutron_powervm.plugins.ibm.agent.powervm import powervm_sea_agent
+from neutron_powervm.tests.unit.ibm.powervm import base
 
 from neutron.common import constants as q_const
 from neutron import context as ctx
-from neutron.tests import base
 
 
-class SimpleTest(base.BaseTestCase):
+class SimpleTest(base.BasePVMTestCase):
 
     def setUp(self):
         super(SimpleTest, self).setUp()
 
-        self.agent = powervm_sea_agent.SharedEthernetNeutronAgent()
+        with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'NetworkBridgeUtils'):
+            self.agent = powervm_sea_agent.SharedEthernetNeutronAgent()
 
-    def test_init(self):
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'NetworkBridgeUtils')
+    def test_init(self, fake_utils):
         '''
         Verifies the integrity of the agent after being initialized.
         '''
