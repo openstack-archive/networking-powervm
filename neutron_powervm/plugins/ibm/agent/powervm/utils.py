@@ -18,8 +18,9 @@ from neutron.i18n import _LW
 from neutron.openstack.common import log as logging
 
 from pypowervm import adapter
+from pypowervm.wrappers import client_network_adapter as cnawrap
+from pypowervm.wrappers import logical_partition as lwrap
 from pypowervm.wrappers import network as nwrap
-
 
 LOG = logging.getLogger(__name__)
 
@@ -47,6 +48,37 @@ class NetworkBridgeUtils(object):
         session = adapter.Session(hmc, username, password, certpath=False)
         self.adapter = adapter.Adapter(session)
         self.host = host
+
+    def list_client_adpts(self):
+        '''
+        Lists all of the Client Network Adapters for the running virtual
+        machines.
+        '''
+        vms = self._list_vm_entries()
+        total_cnas = []
+
+        for vm in vms:
+            cna_uris = vm.get_cna_uris()
+            for cna_uri in cna_uris:
+                cna_entry = self.adapter.readbyhref(cna_uri)
+                cna = cnawrap.ClientNetworkAdapter(cna_entry)
+                total_cnas.append(cna)
+
+        return total_cnas
+
+    def _list_vm_entries(self):
+        '''
+        Returns a List of all of the Client (non-VIOS) VMs on the system.
+        Does not take into account whether or not it is managed by
+        OpenStack.
+        '''
+        vm_feed = self.adapter.read('ManagedSystem', self.host,
+                'LogicalPartition')
+        vm_entries = vm_feed.feed.entries
+        vms = []
+        for vm_entry in vm_entries:
+            vms.append(lwrap.LogicalPartition(vm_entry))
+        return vms
 
     def list_bridges(self):
         '''

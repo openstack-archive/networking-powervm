@@ -94,13 +94,13 @@ class SharedEthernetRpcCallbacks(n_rpc.RpcCallback):
     def port_update(self, context, **kwargs):
         port_id = kwargs['port']['id']
 
-        # TODO Need to perform the call back
+        # TODO(thorst) Need to perform the call back
         LOG.debug(_("port_update RPC received for port: %s"), port_id)
 
     def network_delete(self, context, **kwargs):
         network_id = kwargs.get('network_id')
 
-        # TODO Need to perform the call back
+        # TODO(thorst) Need to perform the call back
         LOG.debug(_("network_delete RPC received for network: %s"), network_id)
 
 
@@ -152,7 +152,7 @@ class SharedEthernetNeutronAgent():
         self.endpoints = [SharedEthernetRpcCallbacks(self)]
 
         # Define the listening consumers for the agent
-        # TODO We may just want to change this to port/update,
+        # TODO(thorst) We may just want to change this to port/update,
         # port/create, and port/delete.  Then plug on those?
         consumers = [[topics.PORT, topics.UPDATE],
                      [topics.NETWORK, topics.DELETE]]
@@ -174,7 +174,7 @@ class SharedEthernetNeutronAgent():
         then the agent is dead.  This call simply tells the controller that
         the agent is alive.
         '''
-        # TODO provide some level of devices connected to this agent.
+        # TODO(thorst) provide some level of devices connected to this agent.
         try:
             device_count = 0
             self.agent_state.get('configurations')['devices'] = device_count
