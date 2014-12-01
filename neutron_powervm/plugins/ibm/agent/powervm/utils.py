@@ -17,8 +17,8 @@
 from neutron.i18n import _LW
 from neutron.openstack.common import log as logging
 
-from pypvm import adapter
-from pypvm.wrappers import network as nwrap
+from pypowervm import adapter
+from pypowervm.wrappers import network as nwrap
 
 
 LOG = logging.getLogger(__name__)

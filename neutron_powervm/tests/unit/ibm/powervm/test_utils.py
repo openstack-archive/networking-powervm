@@ -20,8 +20,8 @@ from neutron_powervm.plugins.ibm.agent.powervm import utils
 
 from neutron_powervm.tests.unit.ibm.powervm import base
 
-from pypvm.tests.wrappers.util.pvmhttp import load_pvm_resp
-from pypvm.wrappers import network as w_net
+from pypowervm.tests.wrappers.util.pvmhttp import load_pvm_resp
+from pypowervm.wrappers import network as w_net
 
 NET_BR_FILE = 'fake_network_bridge.txt'
 
@@ -36,8 +36,8 @@ class UtilsTest(base.BasePVMTestCase):
 
         self.net_br_resp = load_pvm_resp(NET_BR_FILE).get_response()
 
-    @mock.patch('pypvm.adapter.Session')
-    @mock.patch('pypvm.adapter.Adapter')
+    @mock.patch('pypowervm.adapter.Session')
+    @mock.patch('pypowervm.adapter.Adapter')
     def test_list_bridges(self, fake_adapter, fake_session):
         '''
         Test that we can load the bridges in properly.
