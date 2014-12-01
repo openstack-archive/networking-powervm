@@ -20,7 +20,7 @@ from neutron_powervm.plugins.ibm.agent.powervm import utils
 
 from neutron_powervm.tests.unit.ibm.powervm import base
 
-from pypvm.tests.wrappers.pvmhttp import load_pvm_resp
+from pypvm.tests.wrappers.util.pvmhttp import load_pvm_resp
 from pypvm.wrappers import network as w_net
 
 NET_BR_FILE = 'fake_network_bridge.txt'

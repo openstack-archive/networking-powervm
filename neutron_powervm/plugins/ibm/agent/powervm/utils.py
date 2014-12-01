@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.openstack.common.gettextutils import _LW
+from neutron.i18n import _LW
 from neutron.openstack.common import log as logging
 
 from pypvm import adapter
