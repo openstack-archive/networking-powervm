@@ -3,3 +3,4 @@
 .tox/
 neutron_powervm.egg-info/
 *.pyc
+.*.swp

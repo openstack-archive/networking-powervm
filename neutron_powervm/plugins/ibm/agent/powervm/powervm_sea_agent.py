@@ -16,6 +16,8 @@
 #
 # @author: Drew Thorstensen, IBM Corp.
 
+import copy
+
 import eventlet
 eventlet.monkey_patch()
 
@@ -25,14 +27,12 @@ from neutron.agent.common import config as a_config
 from neutron.agent import rpc as agent_rpc
 from neutron.common import config as n_config
 from neutron.common import constants as q_const
-from neutron.common import rpc as n_rpc
 from neutron.common import topics
 from neutron import context as ctx
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import loopingcall
 
 from neutron_powervm.plugins.ibm.agent.powervm import constants as p_const
-from neutron_powervm.plugins.ibm.agent.powervm import utils as pvm_utils
 
 import sys
 import time
@@ -69,7 +69,7 @@ class SharedEthernetPluginApi(agent_rpc.PluginApi):
     pass
 
 
-class SharedEthernetRpcCallbacks(n_rpc.RpcCallback):
+class SharedEthernetRpcCallbacks(object):
     '''
     Provides call backs (as defined in the setup_rpc method within the
     SharedEthernetNeutronAgent class) that will be invoked upon certain
@@ -93,10 +93,9 @@ class SharedEthernetRpcCallbacks(n_rpc.RpcCallback):
         self.agent = agent
 
     def port_update(self, context, **kwargs):
-        port_id = kwargs['port']['id']
-
-        # TODO(thorst) Need to perform the call back
-        LOG.debug(_("port_update RPC received for port: %s"), port_id)
+        port = kwargs['port']
+        self.agent._update_port(port)
+        LOG.debug(_("port_update RPC received for port: %s"), port['id'])
 
     def network_delete(self, context, **kwargs):
         network_id = kwargs.get('network_id')
@@ -127,15 +126,18 @@ class SharedEthernetNeutronAgent():
             'start_flag': True}
         self.setup_rpc()
 
+        # A list of ports that maintains the list of current 'modified' ports
+        self.updated_ports = set()
+
         # Create the utility class that enables work against the Hypervisors
         # Shared Ethernet NetworkBridge.
-        self.conn_utils = pvm_utils.NetworkBridgeUtils(ACONF.hmc_host,
-                                                       ACONF.hmc_user,
-                                                       ACONF.hmc_pass,
-                                                       ACONF.system_uuid)
+#        self.conn_utils = pvm_utils.NetworkBridgeUtils(ACONF.hmc_host,
+#                                                       ACONF.hmc_user,
+#                                                       ACONF.hmc_pass,
+#                                                       ACONF.system_uuid)
 
         # Attempt a list of the Network Bridges to validate connection
-        self.conn_utils.list_bridges()
+#        self.conn_utils.list_bridges()
 
     def setup_rpc(self):
         '''
@@ -185,14 +187,53 @@ class SharedEthernetNeutronAgent():
         except Exception:
             LOG.exception(_("Failed reporting state!"))
 
+    def _update_port(self, port):
+        '''
+        Invoked to indicate that a port has been updated within Neutron.
+        '''
+        self.updated_ports.add(port)
+
+    def _list_updated_ports(self):
+        '''
+        Will return (and then reset) the list of updated ports received
+        from the system.
+        '''
+        ports = copy.copy(self.updated_ports)
+        self.updated_ports = set()
+        return ports
+
+    def _scan_port_delta(self, updated_ports):
+        '''
+        Determines from the updated_ports list which ports are new, which are
+        removed, and which are unchanged.
+
+        :param updated_ports: Ports that were detected as updated from the
+                              Neutron Server.
+        :returns: Dictionary of the input split into a set of 'added',
+                  'removed' and 'updated' ports.
+        '''
+        pass
+
     def rpc_loop(self):
         '''
         Runs a check periodically to determine if new ports were added or
         removed.  Will call down to appropriate methods to determine correct
         course of action.
         '''
-        # TODO(thorst) implement
         while True:
+            # Determine if there are new ports
+            u_ports = self._list_updated_ports()
+
+            # If there are no updated ports, just sleep and re-loop
+            if not u_ports:
+                # TODO(thorst) reconcile the wait timer down to a method
+                time.sleep(1)
+                LOG.debug("NOTHING")
+                continue
+
+            # TODO(thorst) mainline logic will go here
+            LOG.debug("SOMETHING")
+
             time.sleep(1)
 
 

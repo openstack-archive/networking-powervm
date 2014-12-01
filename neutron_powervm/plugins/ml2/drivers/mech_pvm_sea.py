@@ -14,11 +14,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
+from neutron.common import topics
 from neutron.extensions import portbindings
 from neutron.openstack.common import log
 from neutron.plugins.ml2 import driver_api as api
 from neutron.plugins.ml2.drivers import mech_agent
+from neutron.plugins.ml2 import rpc
 
 from neutron_powervm.plugins.ibm.agent.powervm import constants as pconst
 
@@ -38,6 +39,7 @@ class PvmSEAMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
             pconst.AGENT_TYPE_PVM_SEA,
             pconst.VIF_TYPE_PVM_SEA,
             {portbindings.CAP_PORT_FILTER: False})
+        self.rpc_publisher = rpc.AgentNotifierApi(topics.AGENT)
 
     def check_segment_for_agent(self, segment, agent):
         # TODO(thorst) Define appropriate mapping.  Determine whether
@@ -45,3 +47,17 @@ class PvmSEAMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
         LOG.debug("Checking segment: %(segment)s" % {'segment': segment})
         network_type = segment[api.NETWORK_TYPE]
         return network_type in ['vlan']
+
+    def try_to_bind_segment_for_agent(self, context, segment, agent):
+        # When this method is called, the parent should ideally be calling
+        # down to the agent to state that the port was updated.  However,
+        # it appears this isn't flowing properly.  This makes sure the
+        # port is passed down to the agent.
+        bindable = (super(PvmSEAMechanismDriver, self).
+                try_to_bind_segment_for_agent(context, segment, agent))
+        if bindable:
+            self.rpc_publisher.port_update(context._plugin_context,
+                    context._port, segment[api.NETWORK_TYPE],
+                    segment[api.SEGMENTATION_ID],
+                    segment[api.PHYSICAL_NETWORK])
+        return bindable

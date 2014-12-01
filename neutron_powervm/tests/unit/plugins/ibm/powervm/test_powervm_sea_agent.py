@@ -21,7 +21,7 @@ from oslo.config import cfg
 import mock
 
 from neutron_powervm.plugins.ibm.agent.powervm import powervm_sea_agent
-from neutron_powervm.tests.unit.ibm.powervm import base
+from neutron_powervm.tests.unit.plugins.ibm.powervm import base
 
 from neutron.common import constants as q_const
 from neutron import context as ctx
@@ -50,6 +50,21 @@ class SimpleTest(base.BasePVMTestCase):
         self.assertEqual(True, temp_agent.agent_state.get('start_flag'))
         self.assertEqual('PowerVM Shared Ethernet agent',
                          temp_agent.agent_state.get('agent_type'))
+
+    def test_updated_ports(self):
+        '''
+        Validates that the updated ports list can be added to and reset
+        properly as needed.
+        '''
+        self.assertEqual(0, len(self.agent._list_updated_ports()))
+
+        self.agent._update_port(1)
+        self.agent._update_port(2)
+
+        self.assertEqual(2, len(self.agent._list_updated_ports()))
+
+        # This should now be reset back to zero length
+        self.assertEqual(0, len(self.agent._list_updated_ports()))
 
     def test_report_state(self):
         '''

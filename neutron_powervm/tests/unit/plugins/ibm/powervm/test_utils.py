@@ -18,7 +18,7 @@ import mock
 
 from neutron_powervm.plugins.ibm.agent.powervm import utils
 
-from neutron_powervm.tests.unit.ibm.powervm import base
+from neutron_powervm.tests.unit.plugins.ibm.powervm import base
 
 import os
 
