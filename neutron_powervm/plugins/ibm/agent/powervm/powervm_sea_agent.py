@@ -31,6 +31,7 @@ from neutron import context as ctx
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import loopingcall
 
+from neutron_powervm.plugins.ibm.agent.powervm import constants as p_const
 from neutron_powervm.plugins.ibm.agent.powervm import utils as pvm_utils
 
 import sys
@@ -122,7 +123,7 @@ class SharedEthernetNeutronAgent():
             'host': cfg.CONF.host,
             'topic': q_const.L2_AGENT_TOPIC,
             'configurations': {},
-            'agent_type': 'PowerVM Shared Ethernet agent',
+            'agent_type': p_const.AGENT_TYPE_PVM_SEA,
             'start_flag': True}
         self.setup_rpc()
 
