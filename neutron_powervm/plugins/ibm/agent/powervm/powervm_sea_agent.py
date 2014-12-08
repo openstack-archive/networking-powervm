@@ -46,13 +46,13 @@ agent_opts = [
                help=_("The number of seconds the agent will wait between "
                       "polling for local device changes.")),
     # TODO(thorst) Remove when Neo is running on locally
-    cfg.StrOpt('hmc_host', default="9.114.181.230",
+    cfg.StrOpt('hmc_ip', default="",
                help=_("The HMC that is managing the system.")),
-    cfg.StrOpt('hmc_user', default="hscroot",
+    cfg.StrOpt('hmc_user', default="",
                help=_("The user id to use for the HMC communication.")),
-    cfg.StrOpt('hmc_pass', default="Passw0rd",
+    cfg.StrOpt('hmc_pass', default="",
                help=_("The password to the HMC User ID.")),
-    cfg.StrOpt('system_uuid', default="726e9cb3-6576-3df5-ab60-40893d51d074",
+    cfg.StrOpt('hmc_host_id', default="",
                help=_("The system UUID that the agent should operate "
                       "against."))
 ]
@@ -131,10 +131,11 @@ class SharedEthernetNeutronAgent():
 
         # Create the utility class that enables work against the Hypervisors
         # Shared Ethernet NetworkBridge.
-#        self.conn_utils = pvm_utils.NetworkBridgeUtils(ACONF.hmc_host,
+#        password = ACONF.hmc_pass.decode('base64', 'strict')
+#        self.conn_utils = pvm_utils.NetworkBridgeUtils(ACONF.hmc_ip,
 #                                                       ACONF.hmc_user,
-#                                                       ACONF.hmc_pass,
-#                                                       ACONF.system_uuid)
+#                                                       password,
+#                                                       ACONF.hmc_host_id)
 
         # Attempt a list of the Network Bridges to validate connection
 #        self.conn_utils.list_bridges()
