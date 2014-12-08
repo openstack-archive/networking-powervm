@@ -33,6 +33,7 @@ from neutron.openstack.common import log as logging
 from neutron.openstack.common import loopingcall
 
 from neutron_powervm.plugins.ibm.agent.powervm import constants as p_const
+from neutron_powervm.plugins.ibm.agent.powervm import utils as pvm_utils
 
 import sys
 import time
@@ -131,14 +132,11 @@ class SharedEthernetNeutronAgent():
 
         # Create the utility class that enables work against the Hypervisors
         # Shared Ethernet NetworkBridge.
-#        password = ACONF.hmc_pass.decode('base64', 'strict')
-#        self.conn_utils = pvm_utils.NetworkBridgeUtils(ACONF.hmc_ip,
-#                                                       ACONF.hmc_user,
-#                                                       password,
-#                                                       ACONF.hmc_host_id)
-
-        # Attempt a list of the Network Bridges to validate connection
-#        self.conn_utils.list_bridges()
+        password = ACONF.hmc_pass.decode('base64', 'strict')
+        self.conn_utils = pvm_utils.NetworkBridgeUtils(ACONF.hmc_ip,
+                                                       ACONF.hmc_user,
+                                                       password,
+                                                       ACONF.hmc_host_id)
 
     def setup_rpc(self):
         '''
@@ -192,7 +190,7 @@ class SharedEthernetNeutronAgent():
         '''
         Invoked to indicate that a port has been updated within Neutron.
         '''
-        self.updated_ports.add(port)
+        self.updated_ports.append(port)
 
     def _list_updated_ports(self):
         '''
@@ -200,7 +198,7 @@ class SharedEthernetNeutronAgent():
         from the system.
         '''
         ports = copy.copy(self.updated_ports)
-        self.updated_ports = set()
+        self.updated_ports = []
         return ports
 
     def _scan_port_delta(self, updated_ports):
@@ -213,7 +211,27 @@ class SharedEthernetNeutronAgent():
         :returns: Dictionary of the input split into a set of 'added',
                   'removed' and 'updated' ports.
         '''
-        pass
+        # Step 1: List all of the ports on the system.
+        client_adpts = self.conn_utils.list_client_adpts()
+
+        a_ports = []
+        u_ports = []
+        r_ports = []
+
+        # Step 2: For each updated port, determine if it is new or updated
+        for u_port in updated_ports:
+            c_na = self.conn_utils.find_client_adpt_for_mac(
+                    u_port.get('mac_address'), client_adpts)
+            if c_na is None:
+                a_ports.append(u_port)
+            else:
+                u_ports.append(u_port)
+
+        # TODO(thorst) Step 3: Determine removed ports
+
+        # Return the results
+        return {'added': a_ports, 'removed': r_ports,
+                'updated': u_ports}
 
     def rpc_loop(self):
         '''
@@ -228,12 +246,12 @@ class SharedEthernetNeutronAgent():
             # If there are no updated ports, just sleep and re-loop
             if not u_ports:
                 # TODO(thorst) reconcile the wait timer down to a method
+                LOG.debug("No changes, sleeping")
                 time.sleep(1)
-                LOG.debug("NOTHING")
                 continue
 
             # TODO(thorst) mainline logic will go here
-            LOG.debug("SOMETHING")
+            self._scan_port_delta(u_ports)
 
             time.sleep(1)
 

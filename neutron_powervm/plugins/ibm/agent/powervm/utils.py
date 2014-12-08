@@ -49,6 +49,42 @@ class NetworkBridgeUtils(object):
         self.adapter = adapter.Adapter(session)
         self.host = host
 
+    def norm_mac(self, mac):
+        '''
+        Will return a MAC Address that is normalized to match that of the
+        pypowervm API.
+
+        That means that the format will be without colons and upper cased.
+
+        :param mac: A mac address.  Ex. 12:34:56:78:90:ab
+        :returns: A mac that matches the format of the pypowervm api.
+                  Ex. 1234567890AB
+        '''
+        return mac.upper().replace(":", "")
+
+    def find_client_adpt_for_mac(self, mac, client_adpts=None):
+        '''
+        Will return the appropriate client adapter for a given mac address.
+
+        :param mac: The mac address of the client adapter.
+        :param client_adpts: The Client Adapters.  Should be passed in for
+                             performance reasons.  If not, will invoke
+                             list_client_adpts.
+        :returns: The Client Adapter for the mac.  If one isn't found, then
+                  None will be returned.
+        '''
+        if not client_adpts:
+            client_adpts = self.list_client_adpts()
+
+        mac = self.norm_mac(mac)
+
+        for client_adpt in client_adpts:
+            if client_adpt.get_mac() == mac:
+                return client_adpt
+
+        # None was found.
+        return None
+
     def list_client_adpts(self):
         '''
         Lists all of the Client Network Adapters for the running virtual

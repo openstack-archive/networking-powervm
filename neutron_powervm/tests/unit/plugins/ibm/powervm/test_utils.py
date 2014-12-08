@@ -23,6 +23,7 @@ from neutron_powervm.tests.unit.plugins.ibm.powervm import base
 import os
 
 from pypowervm.tests.wrappers.util import pvmhttp
+from pypowervm.wrappers import client_network_adapter as cna
 from pypowervm.wrappers import network as w_net
 
 NET_BR_FILE = 'fake_network_bridge.txt'
@@ -60,6 +61,44 @@ class UtilsTest(base.BasePVMTestCase):
         test_utils = utils.NetworkBridgeUtils(None, None, None, None)
         test_utils.adapter = fake_adapter
         return test_utils
+
+    def __cna(self, mac):
+        '''Create a Client Network Adapter mock.'''
+
+        class FakeCNA(cna.ClientNetworkAdapter):
+
+            def get_slot(self):
+                return 1
+
+            def get_mac(self):
+                return mac
+
+            def get_pvid(self):
+                return 1
+
+        return FakeCNA(None)
+
+    @mock.patch('pypowervm.adapter.Session')
+    def test_find_client_adpt_for_mac(self, fake_session):
+        ut = utils.NetworkBridgeUtils(None, None, None, None)
+
+        cna1 = self.__cna("1234567890AB")
+        cna2 = self.__cna("123456789012")
+
+        self.assertEqual(cna1, ut.find_client_adpt_for_mac("1234567890AB",
+            [cna1, cna2]))
+        self.assertEqual(None, ut.find_client_adpt_for_mac("9876543210AB",
+            [cna1, cna2]))
+
+    @mock.patch('pypowervm.adapter.Session')
+    def test_norm_mac(self, fake_session):
+        ut = utils.NetworkBridgeUtils(None, None, None, None)
+
+        EXPECTED = "1234567890AB"
+        self.assertEqual(EXPECTED, ut.norm_mac("12:34:56:78:90:ab"))
+        self.assertEqual(EXPECTED, ut.norm_mac("1234567890ab"))
+        self.assertEqual(EXPECTED, ut.norm_mac("12:34:56:78:90:AB"))
+        self.assertEqual(EXPECTED, ut.norm_mac("1234567890AB"))
 
     @mock.patch('pypowervm.adapter.Session')
     @mock.patch('pypowervm.adapter.Adapter')

@@ -89,6 +89,45 @@ class SimpleTest(base.BasePVMTestCase):
         # fail.
         self.assertIsNone(self.agent.agent_state.get('start_flag'))
 
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+            'NetworkBridgeUtils')
+    def test_scan_port_delta_add(self, net_utils):
+        '''
+        Validates that scan works for add
+        '''
+        net_utils.find_client_adpt_for_mac = mock.MagicMock(return_value=None)
+        agent = powervm_sea_agent.SharedEthernetNeutronAgent()
+        agent.conn_utils = net_utils
+
+        p1 = self.__mock_n_port('aa:bb:cc:dd:ee:ff')
+        resp = agent._scan_port_delta([p1])
+
+        self.assertEqual(1, len(resp.get('added')))
+        self.assertEqual(0, len(resp.get('updated')))
+        self.assertEqual(0, len(resp.get('removed')))
+
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'NetworkBridgeUtils')
+    def test_scan_port_delta_updated(self, net_utils):
+        '''
+        Validates that scan works for update
+        '''
+        net_utils.find_client_adpt_for_mac = mock.MagicMock(
+                return_value=object())
+        agent = powervm_sea_agent.SharedEthernetNeutronAgent()
+        agent.conn_utils = net_utils
+
+        p1 = self.__mock_n_port('aa:bb:cc:dd:ee:ff')
+        resp = agent._scan_port_delta([p1])
+
+        self.assertEqual(0, len(resp.get('added')))
+        self.assertEqual(1, len(resp.get('updated')))
+        self.assertEqual(0, len(resp.get('removed')))
+
+    def __mock_n_port(self, mac):
+        '''Builds a fake neutron port with a given mac'''
+        return {'mac': mac}
+
     @mock.patch('neutron.openstack.common.loopingcall.'
                 'FixedIntervalLoopingCall')
     @mock.patch.object(ctx, 'get_admin_context_without_session',
