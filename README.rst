@@ -18,7 +18,7 @@ Problem description
 ===================
 
 This blueprint will provide a ML2 compatible agent for the PowerVM hypervisor.
-It will be paired to the PowerVM Nova driver that is also being proposed.
+It will be paired to the nova-powervm driver that is also being proposed.
 
 This PowerVM agent will provide support for VLAN networks across Shared
 Ethernet Adapters.  It will provision the VLANs on the Virtual I/O Servers
@@ -70,13 +70,12 @@ Virtual I/O Servers.  The scope of this initial blueprint will limit the
 provider network type to VLAN.  The actions against the Virtual I/O Servers
 will be done via the PowerVM REST API stack via a python wrapper.
 
-This agent is planned to be developed in StackForge under a powervm project.
-A separate blueprint will be proposed for the L release of OpenStack to
-promote it to the Neutron project.  This will allow a longer period of time to
-show functional testing and drive maturity.
+This agent will be developed in StackForge under the neutron-powervm project.
+Keeping in line with the Neutron team goals, this agent is planned to stay
+independent of Neutron core, but interlock will be done with the Neutron team
+as needed.
 
-Until the promotion to the core Neutron project is complete, this agent will
-be marked experimental.
+Until otherwise indicated, this agent will be marked experimental.
 
 
 Alternatives
@@ -117,8 +116,8 @@ Other end user impact
 
 None to the deployer.
 
-For the Kilo release of OpenStack, the administrator will need to obtain the
-agent from StackForge (and understand it’s experimental status).  The cloud
+For the current releases of OpenStack, the administrator will need to obtain
+the agent from StackForge (and understand it’s experimental status).  The cloud
 administrator will then need to configure a PowerVM specific ini file.  This
 will include defining which Shared Ethernet Adapters a given physical network
 maps to.
@@ -164,12 +163,15 @@ Primary assignee:
 Other contributors:
   kyleh
   dwarcher
+  efried
 
 Work Items
 ----------
 
 * Create a PowerVM specific agent package in the
-  /neutron/plugins/ml2/agents/powervm/ folder.  Stub out the methods.
+  /neutron_powervm/plugins/ibm/agent/powervm/ folder.  Stub out the methods.
+
+ * Create a PowerVM mechanism driver in /neutron_powervm/ml2/drivers/.
 
 * Create a baseline ini file that provides information needed to bring up the
   agent and map it to provider networks.
@@ -198,8 +200,8 @@ Dependencies
   utilize future versions of this specification as it becomes available:
   http://ibm.co/1lThV9R
 
-* Will build on top of a new open source python binding to previously noted
-  PowerVM REST API.  This will be a prerequisite to utilizing the driver.
+* Will build on top of the pypowervm library.  An open-source, python based
+  library that interacts with the PowerVM REST API.
 
 
 Testing

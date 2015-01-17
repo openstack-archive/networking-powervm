@@ -35,19 +35,19 @@ class NetworkBridgeUtils(object):
     this holds the implementation for the methods.
     '''
 
-    def __init__(self, hmc, username, password, host):
+    def __init__(self, pvm_server_ip, username, password, host_id):
         '''
         Initializes the utility class.
 
-        :param hmc: (TEMPORARY) The HMC to run the operations against.
-                    Should be the HMC address.
-        :param username: (TEMPORARY) The user name for API operations.
-        :param password: (TEMPORARY) The password for the API operations.
-        :param host: (TEMPORARY) The host UUID that the HMC is managing.
+        :param pvm_server_ip: The IP address of the PowerVM API server.
+        :param username: The user name for API operations.
+        :param password: The password for the API operations.
+        :param host_id: The API's host UUID for the server being managed.
         '''
-        session = adapter.Session(hmc, username, password, certpath=False)
+        session = adapter.Session(pvm_server_ip, username, password,
+                                  certpath=False)
         self.adapter = adapter.Adapter(session)
-        self.host = host
+        self.host_id = host_id
 
     def norm_mac(self, mac):
         '''
@@ -108,8 +108,8 @@ class NetworkBridgeUtils(object):
         Does not take into account whether or not it is managed by
         OpenStack.
         '''
-        vm_feed = self.adapter.read('ManagedSystem', self.host,
-                'LogicalPartition')
+        vm_feed = self.adapter.read('ManagedSystem', self.host_id,
+                                    'LogicalPartition')
         vm_entries = vm_feed.feed.entries
         vms = []
         for vm_entry in vm_entries:
@@ -121,7 +121,8 @@ class NetworkBridgeUtils(object):
         Queries for the NetworkBridges on the system.  Will return the
         wrapper objects that describe Network Bridges.
         '''
-        resp = self.adapter.read('ManagedSystem', self.host, 'NetworkBridge')
+        resp = self.adapter.read('ManagedSystem', self.host_id,
+                                 'NetworkBridge')
         entries = resp.feed.entries
         net_bridges = []
 
@@ -129,7 +130,6 @@ class NetworkBridgeUtils(object):
             net_bridges.append(nwrap.NetworkBridge(entry))
 
         if len(net_bridges) == 0:
-            # TODO(thorst) Tweak message once host/hmc get tweaked.
             LOG.warn(_LW('No NetworkBridges detected on the host.'))
 
         return net_bridges

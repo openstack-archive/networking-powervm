@@ -46,16 +46,21 @@ agent_opts = [
     cfg.IntOpt('polling_interval', default=2,
                help=_("The number of seconds the agent will wait between "
                       "polling for local device changes.")),
-    # TODO(thorst) Remove when Neo is running on locally
-    cfg.StrOpt('hmc_ip', default="",
-               help=_("The HMC that is managing the system.")),
-    cfg.StrOpt('hmc_user', default="",
-               help=_("The user id to use for the HMC communication.")),
-    cfg.StrOpt('hmc_pass', default="",
-               help=_("The password to the HMC User ID.")),
-    cfg.StrOpt('hmc_host_id', default="",
-               help=_("The system UUID that the agent should operate "
-                      "against."))
+    # TODO(thorst) Reevaluate as the API auth model evolves
+    cfg.StrOpt('pvm_host_mtms',
+               default='',
+               help='The Model Type/Serial Number of the host server to '
+                    'manage.  Format is MODELTYPE_SERIALNUM.  Example is '
+                    '828642A_1234ABC.'),
+    cfg.StrOpt('pvm_server_ip',
+               default='localhost',
+               help='The IP Address hosting the PowerVM REST API'),
+    cfg.StrOpt('pvm_user_id',
+               default='',
+               help='The user id for authentication into the API.'),
+    cfg.StrOpt('pvm_pass',
+               default='',
+               help='The password for authentication into the API.')
 ]
 
 
@@ -132,11 +137,11 @@ class SharedEthernetNeutronAgent():
 
         # Create the utility class that enables work against the Hypervisors
         # Shared Ethernet NetworkBridge.
-        password = ACONF.hmc_pass.decode('base64', 'strict')
-        self.conn_utils = pvm_utils.NetworkBridgeUtils(ACONF.hmc_ip,
-                                                       ACONF.hmc_user,
+        password = ACONF.pvm_pass.decode('base64', 'strict')
+        self.conn_utils = pvm_utils.NetworkBridgeUtils(ACONF.pvm_server_ip,
+                                                       ACONF.pvm_user_id,
                                                        password,
-                                                       ACONF.hmc_host_id)
+                                                       ACONF.pvm_host_mtms)
 
     def setup_rpc(self):
         '''
