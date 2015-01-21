@@ -79,7 +79,7 @@ class NetworkBridgeUtils(object):
         mac = self.norm_mac(mac)
 
         for client_adpt in client_adpts:
-            if client_adpt.get_mac() == mac:
+            if client_adpt.mac == mac:
                 return client_adpt
 
         # None was found.

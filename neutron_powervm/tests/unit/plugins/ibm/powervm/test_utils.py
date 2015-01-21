@@ -67,13 +67,16 @@ class UtilsTest(base.BasePVMTestCase):
 
         class FakeCNA(cna.ClientNetworkAdapter):
 
-            def get_slot(self):
+            @property
+            def slot(self):
                 return 1
 
-            def get_mac(self):
+            @property
+            def mac(self):
                 return mac
 
-            def get_pvid(self):
+            @property
+            def pvid(self):
                 return 1
 
         return FakeCNA(None)
