@@ -61,3 +61,13 @@ class PvmSEAMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
                     segment[api.SEGMENTATION_ID],
                     segment[api.PHYSICAL_NETWORK])
         return bindable
+
+    def get_allowed_network_types():
+        # Required abstract method
+        # TODO(adreznec) Define as required for testing
+        return {}
+
+    def get_mappings():
+        # Required abstract method
+        # TODO(adreznec) Define as required for testing
+        return {}

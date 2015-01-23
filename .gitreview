@@ -1,4 +1,4 @@
 [gerrit]
-host=***REMOVED***
+host=review.openstack.org
 port=29418
-project=neutron-powervm.git
+project=stackforge/neutron-powervm.git
