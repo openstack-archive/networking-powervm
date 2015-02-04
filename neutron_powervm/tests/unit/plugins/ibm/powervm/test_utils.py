@@ -130,7 +130,7 @@ class UtilsTest(base.BasePVMTestCase):
         vm_list = test_utils._list_vm_entries()
         self.assertEqual(17, len(vm_list))
         for vm in vm_list:
-            self.assertTrue(len(vm.get_cna_uris()) > 0)
+            self.assertTrue(len(vm.cna_uris) > 0)
 
     @mock.patch('pypowervm.adapter.Session')
     @mock.patch('pypowervm.adapter.Adapter')
@@ -143,7 +143,8 @@ class UtilsTest(base.BasePVMTestCase):
 
         # Override the VM Entries with a fake CNA
         class FakeVM(object):
-            def get_cna_uris(self):
+            @property
+            def cna_uris(self):
                 return ['mocked']
         vm = FakeVM()
 

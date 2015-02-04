@@ -94,8 +94,7 @@ class NetworkBridgeUtils(object):
         total_cnas = []
 
         for vm in vms:
-            cna_uris = vm.get_cna_uris()
-            for cna_uri in cna_uris:
+            for cna_uri in vm.cna_uris:
                 cna_entry = self.adapter.readbyhref(cna_uri)
                 cna = cnawrap.ClientNetworkAdapter(cna_entry)
                 total_cnas.append(cna)
