@@ -18,9 +18,10 @@ from neutron.i18n import _LW
 from neutron.openstack.common import log as logging
 
 from pypowervm import adapter
-from pypowervm.wrappers import client_network_adapter as cnawrap
-from pypowervm.wrappers import logical_partition as lwrap
-from pypowervm.wrappers import network as nwrap
+from pypowervm.wrappers import client_network_adapter as pvm_cna
+from pypowervm.wrappers import logical_partition as pvm_lpar
+from pypowervm.wrappers import managed_system as pvm_ms
+from pypowervm.wrappers import network as pvm_net
 
 LOG = logging.getLogger(__name__)
 
@@ -35,19 +36,27 @@ class NetworkBridgeUtils(object):
     this holds the implementation for the methods.
     '''
 
-    def __init__(self, pvm_server_ip, username, password, host_id):
+    def __init__(self, pvm_server_ip, username, password, host_mtms):
         '''
         Initializes the utility class.
 
         :param pvm_server_ip: The IP address of the PowerVM API server.
         :param username: The user name for API operations.
         :param password: The password for the API operations.
-        :param host_id: The API's host UUID for the server being managed.
+        :param host_mtms: The host MTMS for the system.
         '''
         session = adapter.Session(pvm_server_ip, username, password,
                                   certpath=False)
         self.adapter = adapter.Adapter(session)
-        self.host_id = host_id
+        self.host_id = self._get_host_uuid(host_mtms)
+
+    def _get_host_uuid(self, host_mtms):
+        # Need to get a list of the hosts, then find the matching one
+        resp = self.adapter.read(pvm_ms.MS_ROOT)
+        host = pvm_ms.find_entry_by_mtms(resp, host_mtms)
+        if not host:
+            raise Exception("Host %s not found" % host_mtms)
+        return host.uuid
 
     def norm_mac(self, mac):
         '''
@@ -95,9 +104,8 @@ class NetworkBridgeUtils(object):
 
         for vm in vms:
             for cna_uri in vm.cna_uris:
-                cna_entry = self.adapter.readbyhref(cna_uri)
-                cna = cnawrap.ClientNetworkAdapter(cna_entry)
-                total_cnas.append(cna)
+                cna_entry = self.adapter.read_by_href(cna_uri)
+                total_cnas.append(pvm_cna.ClientNetworkAdapter(cna_entry))
 
         return total_cnas
 
@@ -112,7 +120,7 @@ class NetworkBridgeUtils(object):
         vm_entries = vm_feed.feed.entries
         vms = []
         for vm_entry in vm_entries:
-            vms.append(lwrap.LogicalPartition(vm_entry))
+            vms.append(pvm_lpar.LogicalPartition(vm_entry))
         return vms
 
     def list_bridges(self):
@@ -126,7 +134,7 @@ class NetworkBridgeUtils(object):
         net_bridges = []
 
         for entry in entries:
-            net_bridges.append(nwrap.NetworkBridge(entry))
+            net_bridges.append(pvm_net.NetworkBridge(entry))
 
         if len(net_bridges) == 0:
             LOG.warn(_LW('No NetworkBridges detected on the host.'))

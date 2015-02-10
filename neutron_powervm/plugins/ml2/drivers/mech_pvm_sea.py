@@ -17,6 +17,7 @@
 from neutron.common import topics
 from neutron.extensions import portbindings
 from neutron.openstack.common import log
+from neutron.plugins.common import constants as p_constants
 from neutron.plugins.ml2 import driver_api as api
 from neutron.plugins.ml2.drivers import mech_agent
 from neutron.plugins.ml2 import rpc
@@ -57,17 +58,14 @@ class PvmSEAMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
                 try_to_bind_segment_for_agent(context, segment, agent))
         if bindable:
             self.rpc_publisher.port_update(context._plugin_context,
-                    context._port, segment[api.NETWORK_TYPE],
-                    segment[api.SEGMENTATION_ID],
-                    segment[api.PHYSICAL_NETWORK])
+                                           context._port,
+                                           segment[api.NETWORK_TYPE],
+                                           segment[api.SEGMENTATION_ID],
+                                           segment[api.PHYSICAL_NETWORK])
         return bindable
 
-    def get_allowed_network_types():
-        # Required abstract method
-        # TODO(adreznec) Define as required for testing
-        return {}
+    def get_allowed_network_types(self, agent=None):
+        return [p_constants.TYPE_VLAN]
 
-    def get_mappings():
-        # Required abstract method
-        # TODO(adreznec) Define as required for testing
-        return {}
+    def get_mappings(self, agent):
+        return agent['configurations'].get('interface_mappings', {})

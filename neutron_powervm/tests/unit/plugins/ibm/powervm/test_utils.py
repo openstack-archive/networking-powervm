@@ -58,7 +58,9 @@ class UtilsTest(base.BasePVMTestCase):
         # Sets the feed to be the response on the adapter for a single read
         attrs = {'read.return_value': feed}
         fake_adapter.configure_mock(**attrs)
-        test_utils = utils.NetworkBridgeUtils(None, None, None, None)
+        with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                        'NetworkBridgeUtils._get_host_uuid'):
+            test_utils = utils.NetworkBridgeUtils(None, None, None, None)
         test_utils.adapter = fake_adapter
         return test_utils
 
@@ -81,8 +83,10 @@ class UtilsTest(base.BasePVMTestCase):
 
         return FakeCNA(None)
 
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'NetworkBridgeUtils._get_host_uuid')
     @mock.patch('pypowervm.adapter.Session')
-    def test_find_client_adpt_for_mac(self, fake_session):
+    def test_find_client_adpt_for_mac(self, fake_session, mock_host_uuid):
         ut = utils.NetworkBridgeUtils(None, None, None, None)
 
         cna1 = self.__cna("1234567890AB")
@@ -93,8 +97,10 @@ class UtilsTest(base.BasePVMTestCase):
         self.assertEqual(None, ut.find_client_adpt_for_mac("9876543210AB",
             [cna1, cna2]))
 
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'NetworkBridgeUtils._get_host_uuid')
     @mock.patch('pypowervm.adapter.Session')
-    def test_norm_mac(self, fake_session):
+    def test_norm_mac(self, fake_session, mock_host_uuid):
         ut = utils.NetworkBridgeUtils(None, None, None, None)
 
         EXPECTED = "1234567890AB"
