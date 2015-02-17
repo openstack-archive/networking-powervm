@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.i18n import _LW
+from neutron.i18n import _LE, _LW
 from neutron.openstack.common import log as logging
 
 from pypowervm import adapter
@@ -22,6 +22,7 @@ from pypowervm.wrappers import client_network_adapter as pvm_cna
 from pypowervm.wrappers import logical_partition as pvm_lpar
 from pypowervm.wrappers import managed_system as pvm_ms
 from pypowervm.wrappers import network as pvm_net
+from pypowervm.wrappers import virtual_io_server as pvm_vios
 
 LOG = logging.getLogger(__name__)
 
@@ -57,6 +58,71 @@ class NetworkBridgeUtils(object):
         if not host:
             raise Exception("Host %s not found" % host_mtms)
         return host.uuid
+
+    def parse_sea_mappings(self, mapping):
+        """This method will parse the sea mappings, and return a UUID map.
+
+        The UUID of the NetworkBridges are required for modification of the
+        VLANs that are bridged through the system (via the
+        SharedEthernetAdapters). However, UUIDs are not user consumable.  This
+        method will read in the string from the CONF file and return a mapping
+        for the physical networks.
+
+        Input:
+         - <ph_network>:<sea>:<vios_name>,<next ph_network>:<sea2>:<vios_name>
+         - Example: default:ent5:vios_lpar,speedy:ent6:vios_lpar
+
+        Output:
+        {
+          'default': <Network Bridge UUID>, 'speedy': <Network Bridge 2 UUID>
+        }
+
+        :param mapping: The mapping string as defined above to parse.
+        :return: The output dictionary described above.
+        """
+        # Read all the network bridges.
+        nb_wraps = self.list_bridges()
+
+        # Need to find a list of all the VIOSes names to hrefs
+        vio_feed = self.adapter.read(pvm_ms.MS_ROOT, root_id=self.host_id,
+                                     child_type=pvm_vios.VIO_ROOT)
+        vio_wraps = pvm_vios.VirtualIOServer.load_from_response(vio_feed)
+
+        # Response dictionary
+        resp = {}
+
+        # Parse the strings
+        trios = mapping.split(',')
+        for trio in trios:
+            # Keys
+            # 0 - physical network
+            # 1 - SEA name
+            # 2 - VIO name
+            keys = trio.split(':')
+
+            # Find the VIOS wrapper for the name
+            vio_w = next(v for v in vio_wraps if v.name == keys[2])
+
+            # For each network bridge, see if it maps to the SEA name/VIOS href
+            matching_nb = None
+            for nb_wrap in nb_wraps:
+                for sea in nb_wrap.seas:
+                    if sea.dev_name == keys[1] and sea.vio_uri == vio_w.href:
+                        # Found the matching SEA.
+                        matching_nb = nb_wrap
+                        break
+
+            # Assuming we found a matching SEA, add it to the dictionary
+            if matching_nb is not None:
+                resp[keys[0]] = matching_nb.uuid
+            else:
+                raise Exception(_LE('Device %(dev)s on Virtual I/O Server '
+                                    '%(vios)s was not found.  Unable to set '
+                                    'up physical network %(phys_net)s.') %
+                                {'dev': keys[1], 'vios': keys[2],
+                                 'phys_net': keys[0]})
+
+        return resp
 
     def norm_mac(self, mac):
         '''
@@ -104,8 +170,9 @@ class NetworkBridgeUtils(object):
 
         for vm in vms:
             for cna_uri in vm.cna_uris:
-                cna_entry = self.adapter.read_by_href(cna_uri)
-                total_cnas.append(pvm_cna.ClientNetworkAdapter(cna_entry))
+                cna_resp = self.adapter.read_by_href(cna_uri)
+                ent = pvm_cna.ClientNetworkAdapter.load_from_response(cna_resp)
+                total_cnas.append(ent)
 
         return total_cnas
 
@@ -130,96 +197,9 @@ class NetworkBridgeUtils(object):
         '''
         resp = self.adapter.read('ManagedSystem', self.host_id,
                                  'NetworkBridge')
-        entries = resp.feed.entries
-        net_bridges = []
-
-        for entry in entries:
-            net_bridges.append(pvm_net.NetworkBridge(entry))
+        net_bridges = pvm_net.NetworkBridge.load_from_response(resp)
 
         if len(net_bridges) == 0:
             LOG.warn(_LW('No NetworkBridges detected on the host.'))
 
         return net_bridges
-
-    def add_vlan(self, net_bridge, load_group, vlan_id):
-        '''
-        This method will add a VLAN to a given LoadGroup within the
-        Network Bridge.
-
-        It assumes that there are enough VLANs available on the
-        Load Group to support the request.
-
-        :param net_bridge: The NetworkBridge wrapper object.
-        :param load_group: The LoadGroup wrapper object within the net_bridge
-                           to add the VLAN to.
-        :param vlan_id: The VLAN to add to the NetworkBridge.
-        '''
-        # TODO(thorst) implement
-        pass
-
-    def remove_vlan(self, net_bridge, load_group, vlan_id):
-        '''
-        This method will remove a VLAN from a given NetworkBridge.  If the
-        VLAN is the last VLAN on the specific LoadGroup, it will delete the
-        LoadGroup from the system (unless it is the 'primary' Load Group
-        on the Network Bridge).
-
-        :param net_bridge: The NetworkBridge wrapper object that contains the
-                           LoadGroup.
-        :param load_groupd: The LoadGroup wrapper object that will have the
-                            VLAN removed from it.
-        :param vlan_id: The VLAN to remove from the NetworkBridge.
-        '''
-        # TODO(thorst) impelement
-        pass
-
-    def is_vlan_on_bridge(self, net_bridge, vlan_id):
-        '''
-        Will determin if the VLAN is 'on the NetworkBridge'.  This means
-        one of the following conditions is met.
-         - Is an addl_vlan on any LoadGroup within the NetworkBridge.
-         - Is the primary VLAN of the primary LoadGroup.  Primary LoadGroup
-           means the first LoadGroup on the Network Bridge.
-
-        This method will return false if one of the following occurs:
-         - Is a primary VLAN of a NON-primary LoadGroup.
-         - Is not on any of the LoadGroups.
-
-        :param net_bridge: The NetworkBridge to query through all VLANs.
-        :param vlan_id: The VLAN ID to query for.
-        :return: True if the VLAN is on the NetworkBridge (see conditions
-                 above). Otherwise returns False.
-        '''
-        # TODO(thorst) impelement
-        pass
-
-    def _is_vlan_non_primary_pvid(self, net_bridge, vlan_id):
-        '''
-        Returns whether or not the VLAN is on a non-primary LoadGroup as a
-        Primary VLAN ID.
-
-        :param net_bridge: The NetworkBridge wrapper object that contains all
-                           of the Load Groups.
-        :param vlan_id: The VLAN to query against the NetworkBridge.
-        :return: True if VLAN is a primary VLAN ID on a non-primary VEA.
-        '''
-        # TODO(thorst) implement
-        return False
-
-    def _find_valid_toss_vid(self, net_bridge, all_net_bridges=None):
-        '''
-        This method will find a VLAN ID that can be used for a non-primary
-        LoadGroup on a given NetworkBridge.  This is a VLAN that is not used
-        by any workload that can be used as a placeholder.
-
-        No traffic will be routed through this VLAN.
-
-        :param net_bridge: The NetworkBridge wrapper object that will make
-                           use of the place holder VLAN.
-        :param all_net_bridges: A listing of all of the NetworkBridge wrapper
-                                objects on the system.
-        :return: An integer value that is valid for use as a non-primary VEA
-                 PVID.
-        '''
-        # TODO(thorst) implement
-        pass

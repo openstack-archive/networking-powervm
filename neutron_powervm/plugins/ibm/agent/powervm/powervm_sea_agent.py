@@ -31,6 +31,7 @@ from neutron.common import topics
 from neutron import context as ctx
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import loopingcall
+from pypowervm.jobs import network_bridger as net_br
 
 from neutron_powervm.plugins.ibm.agent.powervm import constants as p_const
 from neutron_powervm.plugins.ibm.agent.powervm import utils as pvm_utils
@@ -60,7 +61,14 @@ agent_opts = [
                help='The user id for authentication into the API.'),
     cfg.StrOpt('pvm_pass',
                default='',
-               help='The password for authentication into the API.')
+               help='The password for authentication into the API.'),
+    cfg.StrOpt('bridge_mappings',
+               default='',
+               help='The Network Bridge mappings (defined by the SEA) that '
+                    'describes how the neutron physical networks map to the '
+                    'Shared Ethernet Adapters.'
+                    'Format: <ph_net1>:<sea1>:<vio1>,<ph_net2>:<sea2>:<vio2> '
+                    'Example: default:ent5:vios_1,speedy:ent6:vios_1')
 ]
 
 
@@ -142,6 +150,8 @@ class SharedEthernetNeutronAgent():
                                                        ACONF.pvm_user_id,
                                                        password,
                                                        ACONF.pvm_host_mtms)
+
+        self.br_map = self.conn_utils.parse_sea_mappings(ACONF.bridge_mappings)
 
     def setup_rpc(self):
         '''
@@ -255,10 +265,21 @@ class SharedEthernetNeutronAgent():
                 time.sleep(5)
                 continue
 
-            # TODO(thorst) mainline logic will go here
-            self._scan_port_delta(u_ports)
+            # Find the added/updated/removed ports
+            port_data = self._scan_port_delta(u_ports)
 
-            time.sleep(1)
+            # Add any new ports
+            for p in port_data['added']:
+                # TODO(thorst) optimize this path
+                dev = self.plugin_rpc.get_device_details(self.context,
+                                                         p.get('mac_address'),
+                                                         self.agent_id,
+                                                         ACONF.pvm_host_mtms)
+                phys_net = dev.get('physical_network')
+                net_br.ensure_vlan_on_nb(self.conn_utils.adapter,
+                                         self.conn_utils.host_id,
+                                         self.br_map.get(phys_net),
+                                         dev.get('segmentation_id'))
 
 
 def main():

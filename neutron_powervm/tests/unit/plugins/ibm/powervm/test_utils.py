@@ -28,7 +28,7 @@ from pypowervm.wrappers import network as w_net
 
 NET_BR_FILE = 'fake_network_bridge.txt'
 VM_FILE = 'fake_lpar_feed.txt'
-CNA_FILE = 'fake_network_bridge.txt'
+CNA_FILE = 'fake_cna.txt'
 
 
 class UtilsTest(base.BasePVMTestCase):
