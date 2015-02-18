@@ -261,8 +261,9 @@ class SharedEthernetNeutronAgent():
             # If there are no updated ports, just sleep and re-loop
             if not u_ports:
                 # TODO(thorst) reconcile the wait timer down to a method
-                LOG.debug("No changes, sleeping")
-                time.sleep(5)
+                LOG.debug("No changes, sleeping %d seconds." %
+                          ACONF.polling_interval)
+                time.sleep(ACONF.polling_interval)
                 continue
 
             # Find the added/updated/removed ports
