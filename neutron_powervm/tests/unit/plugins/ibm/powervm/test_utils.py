@@ -23,7 +23,6 @@ from neutron_powervm.tests.unit.plugins.ibm.powervm import base
 import os
 
 from pypowervm.tests.wrappers.util import pvmhttp
-from pypowervm.wrappers import client_network_adapter as cna
 from pypowervm.wrappers import network as w_net
 
 NET_BR_FILE = 'fake_network_bridge.txt'
@@ -67,7 +66,7 @@ class UtilsTest(base.BasePVMTestCase):
     def __cna(self, mac):
         '''Create a Client Network Adapter mock.'''
 
-        class FakeCNA(cna.ClientNetworkAdapter):
+        class FakeCNA():
 
             @property
             def slot(self):
@@ -81,7 +80,7 @@ class UtilsTest(base.BasePVMTestCase):
             def pvid(self):
                 return 1
 
-        return FakeCNA(None)
+        return FakeCNA()
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'NetworkBridgeUtils._get_host_uuid')
