@@ -20,7 +20,7 @@ from oslo.config import cfg
 
 import mock
 
-from neutron_powervm.plugins.ibm.agent.powervm import powervm_sea_agent
+from neutron_powervm.plugins.ibm.agent.powervm import sea_agent
 from neutron_powervm.tests.unit.plugins.ibm.powervm import base
 
 from neutron.common import constants as q_const
@@ -63,16 +63,16 @@ class SimpleTest(base.BasePVMTestCase):
         super(SimpleTest, self).setUp()
 
         with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
-                        'NetworkBridgeUtils'):
-            self.agent = powervm_sea_agent.SharedEthernetNeutronAgent()
+                        'PVMUtils'):
+            self.agent = sea_agent.SharedEthernetNeutronAgent()
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
-                'NetworkBridgeUtils')
+                'PVMUtils')
     def test_init(self, fake_utils):
         '''
         Verifies the integrity of the agent after being initialized.
         '''
-        temp_agent = powervm_sea_agent.SharedEthernetNeutronAgent()
+        temp_agent = sea_agent.SharedEthernetNeutronAgent()
         self.assertEqual('neutron-powervm-sharedethernet-agent',
                          temp_agent.agent_state.get('binary'))
         self.assertEqual(q_const.L2_AGENT_TOPIC,
@@ -122,11 +122,11 @@ class SimpleTest(base.BasePVMTestCase):
     @mock.patch('pypowervm.jobs.network_bridger.remove_vlan_from_nb')
     @mock.patch('pypowervm.jobs.network_bridger.ensure_vlan_on_nb')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
-                'NetworkBridgeUtils')
+                'PVMUtils')
     def test_heal_and_optimize(self, mock_utils, mock_nbr_ensure,
                                mock_nbr_remove):
         """Validates the heal and optimization code."""
-        self.agent.conn_utils = mock_utils
+        self.agent.api_utils = mock_utils
 
         # Fake adapters already on system.
         adpts = [FakeClientAdpt('00', 30, []),

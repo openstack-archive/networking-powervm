@@ -28,7 +28,7 @@ from pypowervm.wrappers import virtual_io_server as pvm_vios
 LOG = logging.getLogger(__name__)
 
 
-class NetworkBridgeUtils(object):
+class PVMUtils(object):
     '''
     This class provides a set of methods that can be used for calling in
     to the PowerVM REST API (via the python wrapper) and parsing the results
@@ -137,9 +137,7 @@ class NetworkBridgeUtils(object):
         :returns: A mac that matches the standard neutron format.
                   Ex. 12:34:56:78:90:ab
         '''
-        mac = mac.lower()
-        if ':' in mac:
-            return mac
+        mac = mac.lower().replace(':', '')
         return ':'.join(mac[i:i + 2] for i in range(0, len(mac), 2))
 
     def find_client_adpt_for_mac(self, mac, client_adpts=None):

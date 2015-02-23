@@ -189,7 +189,7 @@ Required Configuration
 In order to operate properly, this agent requires the use of an INI file.  This
 provides basic configuration to the agent.
 
-A sample powervm_sea_agent.ini file will be provided.
+A sample sea_agent.ini file will be provided.
 
 General
 -------
@@ -198,9 +198,9 @@ configuration.  As such, admins are reminded to review the OpenStack guides to
 configure Neutron and its L2 agent.
 
 However, when starting this L2 agent, a config-file must be specified that
-points to the powervm_sea_agent.ini.  This should be used in conjuction with
-the neutron.conf (pass both files in as config-files).  The neutron.conf will
-tell the agent how to talk to the Neutron controller.
+points to the sea_agent.ini.  This should be used in conjuction with the
+neutron.conf (pass both files in as config-files).  The neutron.conf will tell
+the agent how to talk to the Neutron controller.
 
 Bridge Mappings
 ---------------

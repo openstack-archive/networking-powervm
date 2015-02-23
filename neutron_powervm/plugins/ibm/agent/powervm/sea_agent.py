@@ -35,7 +35,7 @@ from neutron.openstack.common import loopingcall
 from pypowervm.jobs import network_bridger as net_br
 
 from neutron_powervm.plugins.ibm.agent.powervm import constants as p_const
-from neutron_powervm.plugins.ibm.agent.powervm import utils as pvm_utils
+from neutron_powervm.plugins.ibm.agent.powervm import utils
 
 import sys
 import time
@@ -147,12 +147,10 @@ class SharedEthernetNeutronAgent():
         # Create the utility class that enables work against the Hypervisors
         # Shared Ethernet NetworkBridge.
         password = ACONF.pvm_pass.decode('base64', 'strict')
-        self.conn_utils = pvm_utils.NetworkBridgeUtils(ACONF.pvm_server_ip,
-                                                       ACONF.pvm_user_id,
-                                                       password,
-                                                       ACONF.pvm_host_mtms)
+        self.api_utils = utils.PVMUtils(ACONF.pvm_server_ip, ACONF.pvm_user_id,
+                                        password, ACONF.pvm_host_mtms)
 
-        self.br_map = self.conn_utils.parse_sea_mappings(ACONF.bridge_mappings)
+        self.br_map = self.api_utils.parse_sea_mappings(ACONF.bridge_mappings)
 
     def setup_rpc(self):
         '''
@@ -169,9 +167,8 @@ class SharedEthernetNeutronAgent():
         # controller.
         self.endpoints = [SharedEthernetRpcCallbacks(self)]
 
-        # Define the listening consumers for the agent
-        # TODO(thorst) We may just want to change this to port/update,
-        # port/create, and port/delete.  Then plug on those?
+        # Define the listening consumers for the agent.  ML2 only supports
+        # these two update types.
         consumers = [[topics.PORT, topics.UPDATE],
                      [topics.NETWORK, topics.DELETE]]
 
@@ -179,11 +176,11 @@ class SharedEthernetNeutronAgent():
                                                      self.topic,
                                                      consumers)
 
+        # Report interval is for the agent health check.
         report_interval = cfg.CONF.AGENT.report_interval
         if report_interval:
-            heartbeat = loopingcall.FixedIntervalLoopingCall(
-                    self._report_state)
-            heartbeat.start(interval=report_interval)
+            hb = loopingcall.FixedIntervalLoopingCall(self._report_state)
+            hb.start(interval=report_interval)
 
     def _report_state(self):
         '''
@@ -233,20 +230,22 @@ class SharedEthernetNeutronAgent():
         """
 
         # List all our clients
-        client_adpts = self.conn_utils.list_client_adpts()
+        client_adpts = self.api_utils.list_client_adpts()
 
-        # Get all the devices that Neutron knows for this host.
-        client_macs = [self.conn_utils.norm_mac(x.mac) for x in client_adpts]
+        # Get all the devices that Neutron knows for this host.  Note that
+        # we pass in all of the macs on the system.  For VMs that neutron does
+        # not know about, we get back an empty structure with just the mac.
+        client_macs = [self.api_utils.norm_mac(x.mac) for x in client_adpts]
         devs = self.plugin_rpc.get_devices_details_list(self.context,
                                                         client_macs,
                                                         self.agent_id,
                                                         ACONF.pvm_host_mtms)
 
-        # Dictionary of the required VLANs on the VM
+        # Dictionary of the required VLANs on the Network Bridge
         nb_req_vlans = {}
-        nb_wraps = self.conn_utils.list_bridges()
+        nb_wraps = self.api_utils.list_bridges()
         for nb_wrap in nb_wraps:
-            nb_req_vlans[nb_wrap.uuid] = []
+            nb_req_vlans[nb_wrap.uuid] = set()
 
         for dev in devs:
             nb_uuid = self.br_map.get(dev.get('physical_network'))
@@ -258,17 +257,15 @@ class SharedEthernetNeutronAgent():
                 continue
 
             # If that list does not contain my VLAN, add it
-            if req_vlan not in nb_req_vlans[nb_uuid]:
-                nb_req_vlans[nb_uuid].append(req_vlan)
+            nb_req_vlans[nb_uuid].add(req_vlan)
 
         # Lets ensure that all VLANs for the openstack VMs are on the network
         # bridges.
         for nb_uuid in nb_req_vlans.keys():
             for vlan in nb_req_vlans[nb_uuid]:
                 # TODO(thorst) optimize
-                net_br.ensure_vlan_on_nb(self.conn_utils.adapter,
-                                         self.conn_utils.host_id,
-                                         nb_uuid, vlan)
+                net_br.ensure_vlan_on_nb(self.api_utils.adapter,
+                                         self.api_utils.host_id, nb_uuid, vlan)
 
         # We should clean up old VLANs as well.  However, we only want to clean
         # up old VLANs that are not in use by ANYTHING in the system.
@@ -279,10 +276,10 @@ class SharedEthernetNeutronAgent():
         # We first extend that map by listing all the VMs on the system
         # (whether managed by OpenStack or not) and then seeing what Network
         # Bridge uses them.
-        vswitch_map = self.conn_utils.get_vswitch_map()
+        vswitch_map = self.api_utils.get_vswitch_map()
         for client_adpt in client_adpts:
-            nb = self.conn_utils.find_nb_for_client_adpt(nb_wraps, client_adpt,
-                                                         vswitch_map)
+            nb = self.api_utils.find_nb_for_client_adpt(nb_wraps, client_adpt,
+                                                        vswitch_map)
             # Could occur if a system is internal only.
             if nb is None:
                 LOG.debug("Client Adapter with mac %s is internal only." %
@@ -291,13 +288,11 @@ class SharedEthernetNeutronAgent():
 
             # Make sure that it is on the nb_req_vlans list, as it is now
             # considered required.
-            if client_adpt.pvid not in nb_req_vlans[nb.uuid]:
-                nb_req_vlans[nb.uuid].append(client_adpt.pvid)
+            nb_req_vlans[nb.uuid].add(client_adpt.pvid)
 
             # Extend for each additional vlans as well
             for addl_vlan in client_adpt.tagged_vlans:
-                if addl_vlan not in nb_req_vlans[nb.uuid]:
-                    nb_req_vlans[nb.uuid].append(addl_vlan)
+                nb_req_vlans[nb.uuid].add(addl_vlan)
 
         # The list of required VLANs on each network bridge also includes
         # everything on the primary VEA.
@@ -306,8 +301,7 @@ class SharedEthernetNeutronAgent():
             vlans = [prim_ld_grp.pvid]
             vlans.extend(prim_ld_grp.tagged_vlans)
             for vlan in vlans:
-                if vlan not in nb_req_vlans[nb.uuid]:
-                    nb_req_vlans[nb.uuid].append(vlan)
+                nb_req_vlans[nb.uuid].add(vlan)
 
         # At this point, all of the required vlans are captured in the
         # nb_req_vlans list.  We now subtract the VLANs on the Network Bridge
@@ -315,15 +309,15 @@ class SharedEthernetNeutronAgent():
         # vlans to remove.
         for nb in nb_wraps:
             req_vlans = nb_req_vlans[nb.uuid]
-            existing_vlans = nb.list_vlans()
-            vlans_to_del = [x for x in existing_vlans if x not in req_vlans]
+            existing_vlans = set(nb.list_vlans())
+            vlans_to_del = existing_vlans - req_vlans
             for vlan_to_del in vlans_to_del:
                 LOG.warn(_LW("Cleaning up VLAN %(vlan)s from the system.  "
                              "It is no longer in use.") %
                          {'vlan': str(vlan_to_del)})
-                net_br.remove_vlan_from_nb(self.conn_utils.adapter,
-                                           self.conn_utils.host_id,
-                                           nb.uuid, vlan_to_del)
+                net_br.remove_vlan_from_nb(self.api_utils.adapter,
+                                           self.api_utils.host_id, nb.uuid,
+                                           vlan_to_del)
 
     def rpc_loop(self):
         '''
@@ -366,8 +360,8 @@ class SharedEthernetNeutronAgent():
                                                          self.agent_id,
                                                          ACONF.pvm_host_mtms)
                 phys_net = dev.get('physical_network')
-                net_br.ensure_vlan_on_nb(self.conn_utils.adapter,
-                                         self.conn_utils.host_id,
+                net_br.ensure_vlan_on_nb(self.api_utils.adapter,
+                                         self.api_utils.host_id,
                                          self.br_map.get(phys_net),
                                          dev.get('segmentation_id'))
 
