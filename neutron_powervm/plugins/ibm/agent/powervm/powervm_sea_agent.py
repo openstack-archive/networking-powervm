@@ -29,6 +29,7 @@ from neutron.common import config as n_config
 from neutron.common import constants as q_const
 from neutron.common import topics
 from neutron import context as ctx
+from neutron.i18n import _LW
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import loopingcall
 from pypowervm.jobs import network_bridger as net_br
@@ -216,37 +217,113 @@ class SharedEthernetNeutronAgent():
         self.updated_ports = []
         return ports
 
-    def _scan_port_delta(self, updated_ports):
-        '''
-        Determines from the updated_ports list which ports are new, which are
-        removed, and which are unchanged.
+    def _heal_and_optimize(self):
+        """Heals the system's network bridges and optimizes.
 
-        :param updated_ports: Ports that were detected as updated from the
-                              Neutron Server.
-        :returns: Dictionary of the input split into a set of 'added',
-                  'removed' and 'updated' ports.
-        '''
-        # Step 1: List all of the ports on the system.
+        Will query neutron for all the ports in use on this host.  Ensures that
+        all of the VLANs needed for those ports are available on the correct
+        network bridge.
+
+        Finally, it optimizes the system by removing any VLANs that may no
+        longer be required.  The VLANs that are removed must meet the following
+        conditions:
+         - Are not in use by ANY virtual machines on the system.  OpenStack
+           managed or not.
+         - Are not part of the primary load group on the Network Bridge.
+        """
+
+        # List all our clients
         client_adpts = self.conn_utils.list_client_adpts()
 
-        a_ports = []
-        u_ports = []
-        r_ports = []
+        # Get all the devices that Neutron knows for this host.
+        client_macs = [self.conn_utils.norm_mac(x.mac) for x in client_adpts]
+        devs = self.plugin_rpc.get_devices_details_list(self.context,
+                                                        client_macs,
+                                                        self.agent_id,
+                                                        ACONF.pvm_host_mtms)
 
-        # Step 2: For each updated port, determine if it is new or updated
-        for u_port in updated_ports:
-            c_na = self.conn_utils.find_client_adpt_for_mac(
-                    u_port.get('mac_address'), client_adpts)
-            if c_na is None:
-                a_ports.append(u_port)
-            else:
-                u_ports.append(u_port)
+        # Dictionary of the required VLANs on the VM
+        nb_req_vlans = {}
+        nb_wraps = self.conn_utils.list_bridges()
+        for nb_wrap in nb_wraps:
+            nb_req_vlans[nb_wrap.uuid] = []
 
-        # TODO(thorst) Step 3: Determine removed ports
+        for dev in devs:
+            nb_uuid = self.br_map.get(dev.get('physical_network'))
+            req_vlan = dev.get('segmentation_id')
 
-        # Return the results
-        return {'added': a_ports, 'removed': r_ports,
-                'updated': u_ports}
+            # This can happen for ports that are on the host, but not in
+            # Neutron.
+            if nb_uuid is None or req_vlan is None:
+                continue
+
+            # If that list does not contain my VLAN, add it
+            if req_vlan not in nb_req_vlans[nb_uuid]:
+                nb_req_vlans[nb_uuid].append(req_vlan)
+
+        # Lets ensure that all VLANs for the openstack VMs are on the network
+        # bridges.
+        for nb_uuid in nb_req_vlans.keys():
+            for vlan in nb_req_vlans[nb_uuid]:
+                # TODO(thorst) optimize
+                net_br.ensure_vlan_on_nb(self.conn_utils.adapter,
+                                         self.conn_utils.host_id,
+                                         nb_uuid, vlan)
+
+        # We should clean up old VLANs as well.  However, we only want to clean
+        # up old VLANs that are not in use by ANYTHING in the system.
+        #
+        # The first step is to identify the VLANs that are needed.  That can
+        # be done by extending our nb_req_vlans map.
+        #
+        # We first extend that map by listing all the VMs on the system
+        # (whether managed by OpenStack or not) and then seeing what Network
+        # Bridge uses them.
+        vswitch_map = self.conn_utils.get_vswitch_map()
+        for client_adpt in client_adpts:
+            nb = self.conn_utils.find_nb_for_client_adpt(nb_wraps, client_adpt,
+                                                         vswitch_map)
+            # Could occur if a system is internal only.
+            if nb is None:
+                LOG.debug("Client Adapter with mac %s is internal only." %
+                          client_adpt.mac)
+                continue
+
+            # Make sure that it is on the nb_req_vlans list, as it is now
+            # considered required.
+            if client_adpt.pvid not in nb_req_vlans[nb.uuid]:
+                nb_req_vlans[nb.uuid].append(client_adpt.pvid)
+
+            # Extend for each additional vlans as well
+            for addl_vlan in client_adpt.tagged_vlans:
+                if addl_vlan not in nb_req_vlans[nb.uuid]:
+                    nb_req_vlans[nb.uuid].append(addl_vlan)
+
+        # The list of required VLANs on each network bridge also includes
+        # everything on the primary VEA.
+        for nb in nb_wraps:
+            prim_ld_grp = nb.load_grps[0]
+            vlans = [prim_ld_grp.pvid]
+            vlans.extend(prim_ld_grp.tagged_vlans)
+            for vlan in vlans:
+                if vlan not in nb_req_vlans[nb.uuid]:
+                    nb_req_vlans[nb.uuid].append(vlan)
+
+        # At this point, all of the required vlans are captured in the
+        # nb_req_vlans list.  We now subtract the VLANs on the Network Bridge
+        # from the ones we identified as required.  That list are the
+        # vlans to remove.
+        for nb in nb_wraps:
+            req_vlans = nb_req_vlans[nb.uuid]
+            existing_vlans = nb.list_vlans()
+            vlans_to_del = [x for x in existing_vlans if x not in req_vlans]
+            for vlan_to_del in vlans_to_del:
+                LOG.warn(_LW("Cleaning up VLAN %(vlan)s from the system.  "
+                             "It is no longer in use.") %
+                         {'vlan': str(vlan_to_del)})
+                net_br.remove_vlan_from_nb(self.conn_utils.adapter,
+                                           self.conn_utils.host_id,
+                                           nb.uuid, vlan_to_del)
 
     def rpc_loop(self):
         '''
@@ -254,23 +331,35 @@ class SharedEthernetNeutronAgent():
         removed.  Will call down to appropriate methods to determine correct
         course of action.
         '''
+
+        loop_count = 0
+        loop_reset_interval = 100
+
         while True:
+            # If a new loop, heal and then iterate
+            if loop_count == 0:
+                LOG.debug("Performing heal and optimization of system.")
+                self._heal_and_optimize()
+
+            # Increment the loop
+            if loop_count == loop_reset_interval:
+                loop_count = 0
+            else:
+                loop_count += 1
+
             # Determine if there are new ports
             u_ports = self._list_updated_ports()
 
             # If there are no updated ports, just sleep and re-loop
             if not u_ports:
-                # TODO(thorst) reconcile the wait timer down to a method
                 LOG.debug("No changes, sleeping %d seconds." %
                           ACONF.polling_interval)
                 time.sleep(ACONF.polling_interval)
                 continue
 
-            # Find the added/updated/removed ports
-            port_data = self._scan_port_delta(u_ports)
-
-            # Add any new ports
-            for p in port_data['added']:
+            # Any updated ports should verify their existence on the network
+            # bridge.
+            for p in u_ports:
                 # TODO(thorst) optimize this path
                 dev = self.plugin_rpc.get_device_details(self.context,
                                                          p.get('mac_address'),

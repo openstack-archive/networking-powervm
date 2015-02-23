@@ -23,11 +23,12 @@ from neutron_powervm.tests.unit.plugins.ibm.powervm import base
 import os
 
 from pypowervm.tests.wrappers.util import pvmhttp
-from pypowervm.wrappers import network as w_net
+from pypowervm.wrappers import network as pvm_net
 
 NET_BR_FILE = 'fake_network_bridge.txt'
 VM_FILE = 'fake_lpar_feed.txt'
 CNA_FILE = 'fake_cna.txt'
+VSW_FILE = 'fake_virtual_switch.txt'
 
 
 class UtilsTest(base.BasePVMTestCase):
@@ -49,6 +50,7 @@ class UtilsTest(base.BasePVMTestCase):
         self.net_br_resp = resp(NET_BR_FILE)
         self.vm_feed_resp = resp(VM_FILE)
         self.cna_resp = resp(CNA_FILE)
+        self.vswitch_resp = resp(VSW_FILE)
 
     def __build_fake_utils(self, fake_adapter, fake_session, feed):
         '''
@@ -92,9 +94,9 @@ class UtilsTest(base.BasePVMTestCase):
         cna2 = self.__cna("123456789012")
 
         self.assertEqual(cna1, ut.find_client_adpt_for_mac("1234567890AB",
-            [cna1, cna2]))
+                                                           [cna1, cna2]))
         self.assertEqual(None, ut.find_client_adpt_for_mac("9876543210AB",
-            [cna1, cna2]))
+                                                           [cna1, cna2]))
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'NetworkBridgeUtils._get_host_uuid')
@@ -102,7 +104,7 @@ class UtilsTest(base.BasePVMTestCase):
     def test_norm_mac(self, fake_session, mock_host_uuid):
         ut = utils.NetworkBridgeUtils(None, None, None, None)
 
-        EXPECTED = "1234567890AB"
+        EXPECTED = "12:34:56:78:90:ab"
         self.assertEqual(EXPECTED, ut.norm_mac("12:34:56:78:90:ab"))
         self.assertEqual(EXPECTED, ut.norm_mac("1234567890ab"))
         self.assertEqual(EXPECTED, ut.norm_mac("12:34:56:78:90:AB"))
@@ -115,12 +117,12 @@ class UtilsTest(base.BasePVMTestCase):
         Test that we can load the bridges in properly.
         '''
         test_utils = self.__build_fake_utils(fake_adapter, fake_session,
-                self.net_br_resp)
+                                             self.net_br_resp)
 
         # Assert that two are read in
         bridges = test_utils.list_bridges()
         self.assertEqual(2, len(bridges))
-        self.assertTrue(isinstance(bridges[0], w_net.NetworkBridge))
+        self.assertTrue(isinstance(bridges[0], pvm_net.NetworkBridge))
 
     @mock.patch('pypowervm.adapter.Session')
     @mock.patch('pypowervm.adapter.Adapter')
@@ -129,7 +131,7 @@ class UtilsTest(base.BasePVMTestCase):
         Validates that VMs can be iterated on properly.
         '''
         test_utils = self.__build_fake_utils(fake_adapter, fake_session,
-                self.vm_feed_resp)
+                                             self.vm_feed_resp)
 
         # List the VMs and make some assertions
         vm_list = test_utils._list_vm_entries()
@@ -139,12 +141,51 @@ class UtilsTest(base.BasePVMTestCase):
 
     @mock.patch('pypowervm.adapter.Session')
     @mock.patch('pypowervm.adapter.Adapter')
+    def test_get_vswitch_map(self, fake_adapter, fake_session):
+        test_utils = self.__build_fake_utils(fake_adapter, fake_session,
+                                             self.vswitch_resp)
+        resp = test_utils.get_vswitch_map()
+        self.assertEqual('https://9.1.2.3:12443/rest/api/uom/ManagedSystem/'
+                         'c5d782c7-44e4-3086-ad15-b16fb039d63b/VirtualSwitch/'
+                         'e1a852cb-2be5-3a51-9147-43761bc3d720',
+                         resp[0])
+
+    @mock.patch('pypowervm.adapter.Session')
+    @mock.patch('pypowervm.adapter.Adapter')
+    def test_find_nb_for_client_adpt(self, fake_adapter, fake_session):
+        test_utils = self.__build_fake_utils(fake_adapter, fake_session,
+                                             self.vswitch_resp)
+
+        nb_wraps = pvm_net.NetworkBridge.load_from_response(self.net_br_resp)
+
+        mock_client_adpt = mock.MagicMock()
+        mock_client_adpt.vswitch_uri = ('https://9.1.2.3:12443/rest/api/uom/'
+                                        'ManagedSystem/'
+                                        'c5d782c7-44e4-3086-ad15-b16fb039d63b/'
+                                        'VirtualSwitch/'
+                                        'e1a852cb-2be5-3a51-9147-43761bc3d720')
+
+        vswitch_map = test_utils.get_vswitch_map()
+
+        # Should have a proper URI, so it should match
+        resp = test_utils.find_nb_for_client_adpt(nb_wraps, mock_client_adpt,
+                                                  vswitch_map)
+        self.assertIsNotNone(resp)
+
+        # Should not match if we change the vswitch URI
+        mock_client_adpt.vswitch_uri = "Fake"
+        resp = test_utils.find_nb_for_client_adpt(nb_wraps, mock_client_adpt,
+                                                  vswitch_map)
+        self.assertIsNone(resp)
+
+    @mock.patch('pypowervm.adapter.Session')
+    @mock.patch('pypowervm.adapter.Adapter')
     def test_list_client_adpts(self, fake_adapter, fake_session):
         '''
         Validates that the CNA's can be iterated against.
         '''
         test_utils = self.__build_fake_utils(fake_adapter, fake_session,
-                self.cna_resp)
+                                             self.cna_resp)
 
         # Override the VM Entries with a fake CNA
         class FakeVM(object):

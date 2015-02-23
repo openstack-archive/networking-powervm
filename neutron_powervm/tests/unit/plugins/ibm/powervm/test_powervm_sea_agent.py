@@ -27,13 +27,43 @@ from neutron.common import constants as q_const
 from neutron import context as ctx
 
 
+def FakeClientAdpt(mac, pvid, tagged_vlans):
+    m = mock.MagicMock()
+    m.mac = mac
+    m.pvid = pvid
+    m.tagged_vlans = tagged_vlans
+    return m
+
+
+def FakeNPort(mac, segment_id, phys_network):
+    return {'mac': mac, 'segmentation_id': segment_id,
+            'physical_network': phys_network}
+
+
+def FakeNB(uuid, pvid, tagged_vlans, addl_vlans):
+    m = mock.MagicMock()
+    m.uuid = uuid
+
+    lg = mock.MagicMock()
+    lg.pvid = pvid
+    lg.tagged_vlans = tagged_vlans
+
+    vlans = [pvid]
+    vlans.extend(tagged_vlans)
+    vlans.extend(addl_vlans)
+    m.list_vlans.return_value = vlans
+
+    m.load_grps = [lg]
+    return m
+
+
 class SimpleTest(base.BasePVMTestCase):
 
     def setUp(self):
         super(SimpleTest, self).setUp()
 
         with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
-                'NetworkBridgeUtils'):
+                        'NetworkBridgeUtils'):
             self.agent = powervm_sea_agent.SharedEthernetNeutronAgent()
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
@@ -89,44 +119,40 @@ class SimpleTest(base.BasePVMTestCase):
         # fail.
         self.assertIsNone(self.agent.agent_state.get('start_flag'))
 
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
-            'NetworkBridgeUtils')
-    def test_scan_port_delta_add(self, net_utils):
-        '''
-        Validates that scan works for add
-        '''
-        net_utils.find_client_adpt_for_mac = mock.MagicMock(return_value=None)
-        agent = powervm_sea_agent.SharedEthernetNeutronAgent()
-        agent.conn_utils = net_utils
-
-        p1 = self.__mock_n_port('aa:bb:cc:dd:ee:ff')
-        resp = agent._scan_port_delta([p1])
-
-        self.assertEqual(1, len(resp.get('added')))
-        self.assertEqual(0, len(resp.get('updated')))
-        self.assertEqual(0, len(resp.get('removed')))
-
+    @mock.patch('pypowervm.jobs.network_bridger.remove_vlan_from_nb')
+    @mock.patch('pypowervm.jobs.network_bridger.ensure_vlan_on_nb')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'NetworkBridgeUtils')
-    def test_scan_port_delta_updated(self, net_utils):
-        '''
-        Validates that scan works for update
-        '''
-        net_utils.find_client_adpt_for_mac = mock.MagicMock(
-                return_value=object())
-        agent = powervm_sea_agent.SharedEthernetNeutronAgent()
-        agent.conn_utils = net_utils
+    def test_heal_and_optimize(self, mock_utils, mock_nbr_ensure,
+                               mock_nbr_remove):
+        """Validates the heal and optimization code."""
+        self.agent.conn_utils = mock_utils
 
-        p1 = self.__mock_n_port('aa:bb:cc:dd:ee:ff')
-        resp = agent._scan_port_delta([p1])
+        # Fake adapters already on system.
+        adpts = [FakeClientAdpt('00', 30, []),
+                 FakeClientAdpt('11', 31, [32, 33, 34])]
+        mock_utils.list_client_adpts.return_value = adpts
 
-        self.assertEqual(0, len(resp.get('added')))
-        self.assertEqual(1, len(resp.get('updated')))
-        self.assertEqual(0, len(resp.get('removed')))
+        # The neutron data.  These will be 'ensured' on the bridge.
+        self.agent.plugin_rpc = mock.MagicMock()
+        self.agent.plugin_rpc.get_devices_details_list.return_value = [
+            FakeNPort('00', 20, 'default'), FakeNPort('22', 22, 'default')]
 
-    def __mock_n_port(self, mac):
-        '''Builds a fake neutron port with a given mac'''
-        return {'mac': mac}
+        self.agent.br_map = {'default': 'nb_uuid'}
+
+        # Mock up network bridges.  VLANs 44, 45, and 46 should be deleted
+        # as they are not required by anything.
+        mock_nb1 = FakeNB('nb_uuid', 20, [], [])
+        mock_nb2 = FakeNB('nb2_uuid', 40, [41, 42, 43], [44, 45, 46])
+        mock_utils.list_bridges.return_value = [mock_nb1, mock_nb2]
+        mock_utils.find_nb_for_client_adpt.return_value = mock_nb2
+
+        # Invoke
+        self.agent._heal_and_optimize()
+
+        # Verify
+        self.assertEqual(3, mock_nbr_remove.call_count)
+        self.assertEqual(2, mock_nbr_ensure.call_count)  # 1 per adapter
 
     @mock.patch('neutron.openstack.common.loopingcall.'
                 'FixedIntervalLoopingCall')

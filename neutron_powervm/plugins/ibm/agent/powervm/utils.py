@@ -18,6 +18,7 @@ from neutron.i18n import _LE, _LW
 from neutron.openstack.common import log as logging
 
 from pypowervm import adapter
+from pypowervm import util as pvm_util
 from pypowervm.wrappers import client_network_adapter as pvm_cna
 from pypowervm.wrappers import logical_partition as pvm_lpar
 from pypowervm.wrappers import managed_system as pvm_ms
@@ -126,16 +127,20 @@ class NetworkBridgeUtils(object):
 
     def norm_mac(self, mac):
         '''
-        Will return a MAC Address that is normalized to match that of the
-        pypowervm API.
+        Will return a MAC Address that normalizes from the pypowervm format
+        to the neutron format.
 
-        That means that the format will be without colons and upper cased.
+        That means that the format will be converted to lower case and will
+        have colons added.
 
-        :param mac: A mac address.  Ex. 12:34:56:78:90:ab
-        :returns: A mac that matches the format of the pypowervm api.
-                  Ex. 1234567890AB
+        :param mac: A pypowervm mac address.  Ex. 1234567890AB
+        :returns: A mac that matches the standard neutron format.
+                  Ex. 12:34:56:78:90:ab
         '''
-        return mac.upper().replace(":", "")
+        mac = mac.lower()
+        if ':' in mac:
+            return mac
+        return ':'.join(mac[i:i + 2] for i in range(0, len(mac), 2))
 
     def find_client_adpt_for_mac(self, mac, client_adpts=None):
         '''
@@ -151,7 +156,7 @@ class NetworkBridgeUtils(object):
         if not client_adpts:
             client_adpts = self.list_client_adpts()
 
-        mac = self.norm_mac(mac)
+        mac = pvm_util.sanitize_mac_for_api(mac)
 
         for client_adpt in client_adpts:
             if client_adpt.mac == mac:
@@ -159,6 +164,48 @@ class NetworkBridgeUtils(object):
 
         # None was found.
         return None
+
+    def find_nb_for_client_adpt(self, nb_wraps, client_adpt, vswitch_map):
+        """
+        Determines the NetworkBridge (if any) that is supporting a client
+        adapter.
+
+        :param nb_wraps: The network bridge wrappers on the system.
+        :param client_adpt: The client adapter wrapper.
+        :param vswitch_map: Maps the vSwitch IDs to URIs.
+                            See 'get_vswitch_map'
+        :return The Network Bridge wrapper that is hosting the client adapter.
+                If there is not one, None is returned.
+        """
+        for nb_wrap in nb_wraps:
+            # If the vSwitch ID doesn't match the vSwitch on the CNA...don't
+            # process
+            if vswitch_map.get(nb_wrap.vswitch_id) != client_adpt.vswitch_uri:
+                continue
+
+            # If the VLAN is not on the network bridge, then do not process.
+            if not nb_wrap.supports_vlan(client_adpt.pvid):
+                continue
+
+            # At this point, the client adapter is supported by this network
+            # bridge
+            return nb_wrap
+
+        # No valid network bridge
+        return None
+
+    def get_vswitch_map(self):
+        """Returns a dictionary of vSwitch IDs to their URIs.
+
+        Ex. {'0': 'https://.../VirtualSwitch/<UUID>'}
+        """
+        vsw_feed = self.adapter.read(pvm_ms.MS_ROOT, root_id=self.host_id,
+                                     child_type=pvm_net.VNET_ROOT)
+        vswitches = pvm_net.VirtualSwitch.load_from_response(vsw_feed)
+        resp = {}
+        for vswitch in vswitches:
+            resp[vswitch.switch_id] = vswitch.href
+        return resp
 
     def list_client_adpts(self):
         '''
