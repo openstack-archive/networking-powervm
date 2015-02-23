@@ -262,10 +262,9 @@ class SharedEthernetNeutronAgent():
         # Lets ensure that all VLANs for the openstack VMs are on the network
         # bridges.
         for nb_uuid in nb_req_vlans.keys():
-            for vlan in nb_req_vlans[nb_uuid]:
-                # TODO(thorst) optimize
-                net_br.ensure_vlan_on_nb(self.api_utils.adapter,
-                                         self.api_utils.host_id, nb_uuid, vlan)
+            net_br.ensure_vlans_on_nb(self.api_utils.adapter,
+                                      self.api_utils.host_id, nb_uuid,
+                                      nb_req_vlans[nb_uuid])
 
         # We should clean up old VLANs as well.  However, we only want to clean
         # up old VLANs that are not in use by ANYTHING in the system.
@@ -319,6 +318,37 @@ class SharedEthernetNeutronAgent():
                                            self.api_utils.host_id, nb.uuid,
                                            vlan_to_del)
 
+    def provision_ports(self, u_ports):
+        """Will ensure that the VLANs are on the NBs for the ports.
+
+        Takes in a set of Neutron Ports.  From those ports, determines the
+        correct network bridges and their appropriate VLANs.  Then calls
+        down to the pypowervm API to ensure that the required VLANs are
+        on the appropriate ports.
+        :param u_ports: The neutron ports.
+        """
+        dev_list = [x.get('mac_address') for x in u_ports]
+        devs = self.plugin_rpc.get_devices_details_list(self.context,
+                                                        dev_list,
+                                                        self.agent_id,
+                                                        ACONF.pvm_host_mtms)
+
+        # Break the ports into their respective lists broken down by
+        # Network Bridge.
+        nb_to_vlan = {}
+        for dev in devs:
+            phys_net = dev.get('physical_network')
+            nb_uuid = self.br_map.get(phys_net)
+            if nb_to_vlan.get(nb_uuid) is None:
+                nb_to_vlan[nb_uuid] = set()
+            nb_to_vlan[nb_uuid].add(dev.get('segmentation_id'))
+
+        # For each bridge, make sure the VLANs are serviced.
+        for nb_uuid in nb_to_vlan.keys():
+            net_br.ensure_vlans_on_nb(self.api_utils.adapter,
+                                      self.api_utils.host_id, nb_uuid,
+                                      nb_to_vlan.get(nb_uuid))
+
     def rpc_loop(self):
         '''
         Runs a check periodically to determine if new ports were added or
@@ -351,19 +381,8 @@ class SharedEthernetNeutronAgent():
                 time.sleep(ACONF.polling_interval)
                 continue
 
-            # Any updated ports should verify their existence on the network
-            # bridge.
-            for p in u_ports:
-                # TODO(thorst) optimize this path
-                dev = self.plugin_rpc.get_device_details(self.context,
-                                                         p.get('mac_address'),
-                                                         self.agent_id,
-                                                         ACONF.pvm_host_mtms)
-                phys_net = dev.get('physical_network')
-                net_br.ensure_vlan_on_nb(self.api_utils.adapter,
-                                         self.api_utils.host_id,
-                                         self.br_map.get(phys_net),
-                                         dev.get('segmentation_id'))
+            # Provision the ports on the Network Bridge.
+            self.provision_ports(u_ports)
 
 
 def main():

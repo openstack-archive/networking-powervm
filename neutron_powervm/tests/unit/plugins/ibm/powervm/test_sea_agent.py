@@ -119,8 +119,29 @@ class SimpleTest(base.BasePVMTestCase):
         # fail.
         self.assertIsNone(self.agent.agent_state.get('start_flag'))
 
+    @mock.patch('pypowervm.jobs.network_bridger.ensure_vlans_on_nb')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'PVMUtils')
+    def test_provision_ports(self, mock_utils, mock_ensure):
+        """Validates that the provision is invoked with batched VLANs."""
+        self.agent.api_utils = mock_utils
+
+        self.agent.plugin_rpc = mock.MagicMock()
+        self.agent.plugin_rpc.get_devices_details_list.return_value = [
+            FakeNPort('aa', 20, 'default'), FakeNPort('bb', 22, 'default')]
+
+        self.agent.br_map = {'default': 'nb_uuid'}
+
+        # Invoke
+        self.agent.provision_ports([FakeNPort('aa', 20, 'default'),
+                                    FakeNPort('bb', 22, 'default')])
+
+        # Validate that both VLANs are in one call
+        mock_ensure.assert_called_once_with(mock.ANY, mock.ANY, 'nb_uuid',
+                                            set([20, 22]))
+
     @mock.patch('pypowervm.jobs.network_bridger.remove_vlan_from_nb')
-    @mock.patch('pypowervm.jobs.network_bridger.ensure_vlan_on_nb')
+    @mock.patch('pypowervm.jobs.network_bridger.ensure_vlans_on_nb')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'PVMUtils')
     def test_heal_and_optimize(self, mock_utils, mock_nbr_ensure,
