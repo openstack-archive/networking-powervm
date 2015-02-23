@@ -169,7 +169,7 @@ class SimpleTest(base.BasePVMTestCase):
         mock_utils.find_nb_for_client_adpt.return_value = mock_nb2
 
         # Invoke
-        self.agent._heal_and_optimize()
+        self.agent.heal_and_optimize(False)
 
         # Verify
         self.assertEqual(3, mock_nbr_remove.call_count)

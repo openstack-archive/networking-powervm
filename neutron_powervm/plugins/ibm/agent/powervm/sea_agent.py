@@ -1,4 +1,4 @@
-# Copyright 2014 IBM Corp.
+# Copyright 2014, 2015 IBM Corp.
 #
 # All Rights Reserved.
 #
@@ -13,10 +13,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-#
-# @author: Drew Thorstensen, IBM Corp.
-
-import copy
 
 import eventlet
 eventlet.monkey_patch()
@@ -24,45 +20,21 @@ eventlet.monkey_patch()
 from oslo.config import cfg
 
 from neutron.agent.common import config as a_config
-from neutron.agent import rpc as agent_rpc
 from neutron.common import config as n_config
-from neutron.common import constants as q_const
-from neutron.common import topics
-from neutron import context as ctx
 from neutron.i18n import _LW
 from neutron.openstack.common import log as logging
-from neutron.openstack.common import loopingcall
 from pypowervm.jobs import network_bridger as net_br
 
+from neutron_powervm.plugins.ibm.agent.powervm import agent_base
 from neutron_powervm.plugins.ibm.agent.powervm import constants as p_const
-from neutron_powervm.plugins.ibm.agent.powervm import utils
 
 import sys
-import time
 
 
 LOG = logging.getLogger(__name__)
 
 
 agent_opts = [
-    cfg.IntOpt('polling_interval', default=2,
-               help=_("The number of seconds the agent will wait between "
-                      "polling for local device changes.")),
-    # TODO(thorst) Reevaluate as the API auth model evolves
-    cfg.StrOpt('pvm_host_mtms',
-               default='',
-               help='The Model Type/Serial Number of the host server to '
-                    'manage.  Format is MODEL-TYPE*SERIALNUM.  Example is '
-                    '8286-42A*1234ABC.'),
-    cfg.StrOpt('pvm_server_ip',
-               default='localhost',
-               help='The IP Address hosting the PowerVM REST API'),
-    cfg.StrOpt('pvm_user_id',
-               default='',
-               help='The user id for authentication into the API.'),
-    cfg.StrOpt('pvm_pass',
-               default='',
-               help='The password for authentication into the API.'),
     cfg.StrOpt('bridge_mappings',
                default='',
                help='The Network Bridge mappings (defined by the SEA) that '
@@ -80,46 +52,7 @@ a_config.register_root_helper(cfg.CONF)
 ACONF = cfg.CONF.AGENT
 
 
-class SharedEthernetPluginApi(agent_rpc.PluginApi):
-    pass
-
-
-class SharedEthernetRpcCallbacks(object):
-    '''
-    Provides call backs (as defined in the setup_rpc method within the
-    SharedEthernetNeutronAgent class) that will be invoked upon certain
-    actions from the controller.
-    '''
-
-    # This agent supports RPC Version 1.0.  For reference:
-    #  1.0 Initial version
-    #  1.1 Support Security Group RPC
-    #  1.2 Support DVR (Distributed Virtual Router) RPC
-    RPC_API_VERSION = '1.1'
-
-    def __init__(self, agent):
-        '''
-        Creates the call back.  Most of the call back methods will be
-        delegated to the agent.
-
-        :param agent: The owning agent to delegate the callbacks to.
-        '''
-        super(SharedEthernetRpcCallbacks, self).__init__()
-        self.agent = agent
-
-    def port_update(self, context, **kwargs):
-        port = kwargs['port']
-        self.agent._update_port(port)
-        LOG.debug(_("port_update RPC received for port: %s"), port['id'])
-
-    def network_delete(self, context, **kwargs):
-        network_id = kwargs.get('network_id')
-
-        # TODO(thorst) Need to perform the call back
-        LOG.debug(_("network_delete RPC received for network: %s"), network_id)
-
-
-class SharedEthernetNeutronAgent():
+class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
     '''
     Provides VLAN networks for the PowerVM platform that run accross the
     Shared Ethernet within the Virtual I/O Servers.  Designed to be compatible
@@ -127,94 +60,14 @@ class SharedEthernetNeutronAgent():
     '''
 
     def __init__(self):
-        '''
-        Constructs the agent.
-        '''
-        # Define the baseline agent_state that will be reported back for the
-        # health status
-        self.agent_state = {
-            'binary': 'neutron-powervm-sharedethernet-agent',
-            'host': cfg.CONF.host,
-            'topic': q_const.L2_AGENT_TOPIC,
-            'configurations': {},
-            'agent_type': p_const.AGENT_TYPE_PVM_SEA,
-            'start_flag': True}
-        self.setup_rpc()
-
-        # A list of ports that maintains the list of current 'modified' ports
-        self.updated_ports = set()
-
-        # Create the utility class that enables work against the Hypervisors
-        # Shared Ethernet NetworkBridge.
-        password = ACONF.pvm_pass.decode('base64', 'strict')
-        self.api_utils = utils.PVMUtils(ACONF.pvm_server_ip, ACONF.pvm_user_id,
-                                        password, ACONF.pvm_host_mtms)
+        """Constructs the agent."""
+        name = 'neutron-powervm-sharedethernet-agent'
+        agent_type = p_const.AGENT_TYPE_PVM_SEA
+        super(SharedEthernetNeutronAgent, self).__init__(name, agent_type)
 
         self.br_map = self.api_utils.parse_sea_mappings(ACONF.bridge_mappings)
 
-    def setup_rpc(self):
-        '''
-        Registers the RPC consumers for the plugin.
-        '''
-        self.agent_id = 'sea-agent-%s' % cfg.CONF.host
-        self.topic = topics.AGENT
-        self.plugin_rpc = SharedEthernetPluginApi(topics.PLUGIN)
-        self.state_rpc = agent_rpc.PluginReportStateAPI(topics.PLUGIN)
-
-        self.context = ctx.get_admin_context_without_session()
-
-        # Defines what will be listening for incoming events from the
-        # controller.
-        self.endpoints = [SharedEthernetRpcCallbacks(self)]
-
-        # Define the listening consumers for the agent.  ML2 only supports
-        # these two update types.
-        consumers = [[topics.PORT, topics.UPDATE],
-                     [topics.NETWORK, topics.DELETE]]
-
-        self.connection = agent_rpc.create_consumers(self.endpoints,
-                                                     self.topic,
-                                                     consumers)
-
-        # Report interval is for the agent health check.
-        report_interval = cfg.CONF.AGENT.report_interval
-        if report_interval:
-            hb = loopingcall.FixedIntervalLoopingCall(self._report_state)
-            hb.start(interval=report_interval)
-
-    def _report_state(self):
-        '''
-        Reports the state of the agent back to the controller.  Controller
-        knows that if a response isn't provided in a certain period of time
-        then the agent is dead.  This call simply tells the controller that
-        the agent is alive.
-        '''
-        # TODO(thorst) provide some level of devices connected to this agent.
-        try:
-            device_count = 0
-            self.agent_state.get('configurations')['devices'] = device_count
-            self.state_rpc.report_state(self.context,
-                                        self.agent_state)
-            self.agent_state.pop('start_flag', None)
-        except Exception:
-            LOG.exception(_("Failed reporting state!"))
-
-    def _update_port(self, port):
-        '''
-        Invoked to indicate that a port has been updated within Neutron.
-        '''
-        self.updated_ports.append(port)
-
-    def _list_updated_ports(self):
-        '''
-        Will return (and then reset) the list of updated ports received
-        from the system.
-        '''
-        ports = copy.copy(self.updated_ports)
-        self.updated_ports = []
-        return ports
-
-    def _heal_and_optimize(self):
+    def heal_and_optimize(self, is_boot):
         """Heals the system's network bridges and optimizes.
 
         Will query neutron for all the ports in use on this host.  Ensures that
@@ -227,6 +80,9 @@ class SharedEthernetNeutronAgent():
          - Are not in use by ANY virtual machines on the system.  OpenStack
            managed or not.
          - Are not part of the primary load group on the Network Bridge.
+
+        :param is_boot: Indicates if this is the first call on boot up of the
+                        agent.
         """
 
         # List all our clients
@@ -318,16 +174,18 @@ class SharedEthernetNeutronAgent():
                                            self.api_utils.host_id, nb.uuid,
                                            vlan_to_del)
 
-    def provision_ports(self, u_ports):
+    def provision_ports(self, ports):
         """Will ensure that the VLANs are on the NBs for the ports.
 
         Takes in a set of Neutron Ports.  From those ports, determines the
         correct network bridges and their appropriate VLANs.  Then calls
         down to the pypowervm API to ensure that the required VLANs are
         on the appropriate ports.
-        :param u_ports: The neutron ports.
+
+        :param ports: The new ports that are to be provisioned.  Is a set
+                      of neutron ports.
         """
-        dev_list = [x.get('mac_address') for x in u_ports]
+        dev_list = [x.get('mac_address') for x in ports]
         devs = self.plugin_rpc.get_devices_details_list(self.context,
                                                         dev_list,
                                                         self.agent_id,
@@ -348,41 +206,6 @@ class SharedEthernetNeutronAgent():
             net_br.ensure_vlans_on_nb(self.api_utils.adapter,
                                       self.api_utils.host_id, nb_uuid,
                                       nb_to_vlan.get(nb_uuid))
-
-    def rpc_loop(self):
-        '''
-        Runs a check periodically to determine if new ports were added or
-        removed.  Will call down to appropriate methods to determine correct
-        course of action.
-        '''
-
-        loop_count = 0
-        loop_reset_interval = 100
-
-        while True:
-            # If a new loop, heal and then iterate
-            if loop_count == 0:
-                LOG.debug("Performing heal and optimization of system.")
-                self._heal_and_optimize()
-
-            # Increment the loop
-            if loop_count == loop_reset_interval:
-                loop_count = 0
-            else:
-                loop_count += 1
-
-            # Determine if there are new ports
-            u_ports = self._list_updated_ports()
-
-            # If there are no updated ports, just sleep and re-loop
-            if not u_ports:
-                LOG.debug("No changes, sleeping %d seconds." %
-                          ACONF.polling_interval)
-                time.sleep(ACONF.polling_interval)
-                continue
-
-            # Provision the ports on the Network Bridge.
-            self.provision_ports(u_ports)
 
 
 def main():
