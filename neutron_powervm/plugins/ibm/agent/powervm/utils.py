@@ -19,6 +19,7 @@ from neutron.openstack.common import log as logging
 
 from pypowervm import adapter
 from pypowervm import util as pvm_util
+from pypowervm.utils import retry as pvm_retry
 from pypowervm.wrappers import client_network_adapter as pvm_cna
 from pypowervm.wrappers import logical_partition as pvm_lpar
 from pypowervm.wrappers import managed_system as pvm_ms
@@ -192,6 +193,7 @@ class PVMUtils(object):
         # No valid network bridge
         return None
 
+    @pvm_retry.retry()
     def get_vswitch_map(self):
         """Returns a dictionary of vSwitch IDs to their URIs.
 
@@ -205,6 +207,7 @@ class PVMUtils(object):
             resp[vswitch.switch_id] = vswitch.href
         return resp
 
+    @pvm_retry.retry()
     def list_client_adpts(self):
         '''
         Lists all of the Client Network Adapters for the running virtual
@@ -235,6 +238,7 @@ class PVMUtils(object):
             vms.append(pvm_lpar.LogicalPartition(vm_entry))
         return vms
 
+    @pvm_retry.retry()
     def list_bridges(self):
         '''
         Queries for the NetworkBridges on the system.  Will return the

@@ -26,6 +26,7 @@ from neutron.agent import rpc as agent_rpc
 from neutron.common import constants as q_const
 from neutron.common import topics
 from neutron import context as ctx
+from neutron.i18n import _LW, _LE
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import loopingcall
 
@@ -233,24 +234,47 @@ class BasePVMNeutronAgent(object):
         loop_timer = float(0)
         loop_interval = float(ACONF.heal_and_optimize_interval)
         first_loop = True
+        succesive_exceptions = 0
 
         while True:
-            # If the loop interval has passed, heal and optimize
-            if time.time() - loop_timer > loop_interval:
-                LOG.debug("Performing heal and optimization of system.")
-                self.heal_and_optimize(first_loop)
-                first_loop = False
-                loop_timer = time.time()
+            try:
+                # If the loop interval has passed, heal and optimize
+                if time.time() - loop_timer > loop_interval:
+                    LOG.debug("Performing heal and optimization of system.")
+                    self.heal_and_optimize(first_loop)
+                    first_loop = False
+                    loop_timer = time.time()
 
-            # Determine if there are new ports
-            u_ports = self._list_updated_ports()
+                # Determine if there are new ports
+                u_ports = self._list_updated_ports()
 
-            # If there are no updated ports, just sleep and re-loop
-            if not u_ports:
-                LOG.debug("No changes, sleeping %d seconds." %
-                          ACONF.polling_interval)
-                time.sleep(ACONF.polling_interval)
-                continue
+                # If there are no updated ports, just sleep and re-loop
+                if not u_ports:
+                    LOG.debug("No changes, sleeping %d seconds." %
+                              ACONF.polling_interval)
+                    time.sleep(ACONF.polling_interval)
+                    continue
 
-            # Provision the ports on the Network Bridge.
-            self.provision_ports(u_ports)
+                # Provision the ports on the Network Bridge.
+                self.provision_ports(u_ports)
+                succesive_exceptions = 0
+            except Exception as e:
+                # The agent should retry a few times, in case something
+                # bubbled up.  A successful provision loop will reset the
+                # timer.
+                #
+                # Note that the exception timer is not reset if there are no
+                # provisions.  That is because 99% of the errors will occur
+                # in the provision path.  So we only reset the error when
+                # a successful provision has occurred (otherwise we'd never
+                # hit the exception limit).
+                succesive_exceptions += 1
+                LOG.exception(e)
+                if succesive_exceptions == 3:
+                    LOG.error(_LE("Multiple exceptions have been "
+                                  "encountered.  The agent is unable to "
+                                  "proceed.  Exiting."))
+                    raise
+                else:
+                    LOG.warn(_LW("Error has been encountered and logged.  The "
+                             "agent will retry again."))
