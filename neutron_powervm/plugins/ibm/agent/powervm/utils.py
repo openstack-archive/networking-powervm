@@ -20,7 +20,6 @@ from neutron.openstack.common import log as logging
 from pypowervm import adapter
 from pypowervm import util as pvm_util
 from pypowervm.utils import retry as pvm_retry
-from pypowervm.wrappers import client_network_adapter as pvm_cna
 from pypowervm.wrappers import logical_partition as pvm_lpar
 from pypowervm.wrappers import managed_system as pvm_ms
 from pypowervm.wrappers import network as pvm_net
@@ -219,7 +218,7 @@ class PVMUtils(object):
         for vm in vms:
             for cna_uri in vm.cna_uris:
                 cna_resp = self.adapter.read_by_href(cna_uri)
-                ent = pvm_cna.ClientNetworkAdapter.load_from_response(cna_resp)
+                ent = pvm_net.CNA.load_from_response(cna_resp)
                 total_cnas.append(ent)
 
         return total_cnas
