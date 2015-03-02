@@ -61,6 +61,7 @@ class UtilsTest(base.BasePVMTestCase):
 
         # Sets the feed to be the response on the adapter for a single read
         fake_adapter.read.return_value = feed
+        fake_adapter.read_by_href.return_value = feed
         with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                         'PVMUtils._get_host_uuid'):
             test_utils = utils.PVMUtils(None, None, None, None)
@@ -115,7 +116,7 @@ class UtilsTest(base.BasePVMTestCase):
         # Assert that two are read in
         bridges = test_utils.list_bridges()
         self.assertEqual(2, len(bridges))
-        self.assertTrue(isinstance(bridges[0], pvm_net.NetworkBridge))
+        self.assertTrue(isinstance(bridges[0], pvm_net.NetBridge))
 
     def test_list_vm_entries(self):
         '''
@@ -140,7 +141,7 @@ class UtilsTest(base.BasePVMTestCase):
     def test_find_nb_for_client_adpt(self):
         test_utils = self.__build_fake_utils(self.vswitch_resp)
 
-        nb_wraps = pvm_net.NetworkBridge.load_from_response(self.net_br_resp)
+        nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
 
         mock_client_adpt = mock.MagicMock()
         mock_client_adpt.vswitch_uri = ('https://9.1.2.3:12443/rest/api/uom/'

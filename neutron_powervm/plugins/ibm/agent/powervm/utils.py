@@ -54,7 +54,7 @@ class PVMUtils(object):
 
     def _get_host_uuid(self, host_mtms):
         # Need to get a list of the hosts, then find the matching one
-        resp = self.adapter.read(pvm_ms.MS_ROOT)
+        resp = self.adapter.read(pvm_ms.System.schema_type)
         host = pvm_ms.find_entry_by_mtms(resp, host_mtms)
         if not host:
             raise Exception("Host %s not found" % host_mtms)
@@ -85,9 +85,10 @@ class PVMUtils(object):
         nb_wraps = self.list_bridges()
 
         # Need to find a list of all the VIOSes names to hrefs
-        vio_feed = self.adapter.read(pvm_ms.MS_ROOT, root_id=self.host_id,
-                                     child_type=pvm_vios.VIO_ROOT)
-        vio_wraps = pvm_vios.VirtualIOServer.load_from_response(vio_feed)
+        vio_feed = self.adapter.read(pvm_ms.System.schema_type,
+                                     root_id=self.host_id,
+                                     child_type=pvm_vios.VIOS.schema_type)
+        vio_wraps = pvm_vios.VIOS.wrap(vio_feed)
 
         # Response dictionary
         resp = {}
@@ -198,9 +199,10 @@ class PVMUtils(object):
 
         Ex. {'0': 'https://.../VirtualSwitch/<UUID>'}
         """
-        vsw_feed = self.adapter.read(pvm_ms.MS_ROOT, root_id=self.host_id,
-                                     child_type=pvm_net.VNET_ROOT)
-        vswitches = pvm_net.VirtualSwitch.load_from_response(vsw_feed)
+        vsw_feed = self.adapter.read(pvm_ms.System.schema_type,
+                                     root_id=self.host_id,
+                                     child_type=pvm_net.VNet.schema_type)
+        vswitches = pvm_net.VSwitch.wrap(vsw_feed)
         resp = {}
         for vswitch in vswitches:
             resp[vswitch.switch_id] = vswitch.href
@@ -218,7 +220,7 @@ class PVMUtils(object):
         for vm in vms:
             for cna_uri in vm.cna_uris:
                 cna_resp = self.adapter.read_by_href(cna_uri)
-                ent = pvm_net.CNA.load_from_response(cna_resp)
+                ent = pvm_net.CNA.wrap(cna_resp)
                 total_cnas.append(ent)
 
         return total_cnas
@@ -229,12 +231,13 @@ class PVMUtils(object):
         Does not take into account whether or not it is managed by
         OpenStack.
         '''
-        vm_feed = self.adapter.read('ManagedSystem', self.host_id,
-                                    'LogicalPartition')
+        vm_feed = self.adapter.read(pvm_ms.System.schema_type,
+                                    root_id=self.host_id,
+                                    child_type=pvm_lpar.LPAR.schema_type)
         vm_entries = vm_feed.feed.entries
         vms = []
         for vm_entry in vm_entries:
-            vms.append(pvm_lpar.LogicalPartition(vm_entry))
+            vms.append(pvm_lpar.LPAR.wrap(vm_entry))
         return vms
 
     @pvm_retry.retry()
@@ -243,9 +246,10 @@ class PVMUtils(object):
         Queries for the NetworkBridges on the system.  Will return the
         wrapper objects that describe Network Bridges.
         '''
-        resp = self.adapter.read('ManagedSystem', self.host_id,
-                                 'NetworkBridge')
-        net_bridges = pvm_net.NetworkBridge.load_from_response(resp)
+        resp = self.adapter.read(pvm_ms.System.schema_type,
+                                 root_id=self.host_id,
+                                 child_type=pvm_net.NetBridge.schema_type)
+        net_bridges = pvm_net.NetBridge.wrap(resp)
 
         if len(net_bridges) == 0:
             LOG.warn(_LW('No NetworkBridges detected on the host.'))
