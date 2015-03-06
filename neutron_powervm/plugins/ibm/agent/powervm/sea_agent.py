@@ -17,7 +17,7 @@
 import eventlet
 eventlet.monkey_patch()
 
-from oslo.config import cfg
+from oslo_config import cfg
 
 from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
