@@ -14,8 +14,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_log import log as logging
+
 from neutron.i18n import _LE, _LW
-from neutron.openstack.common import log as logging
 
 from pypowervm import adapter
 from pypowervm import util as pvm_util

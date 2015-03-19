@@ -117,7 +117,7 @@ class SimpleTest(base.BasePVMTestCase):
         # fail.
         self.assertIsNone(self.agent.agent_state.get('start_flag'))
 
-    @mock.patch('pypowervm.jobs.network_bridger.ensure_vlans_on_nb')
+    @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'PVMUtils')
     def test_provision_ports(self, mock_utils, mock_ensure):
@@ -138,8 +138,8 @@ class SimpleTest(base.BasePVMTestCase):
         mock_ensure.assert_called_once_with(mock.ANY, mock.ANY, 'nb_uuid',
                                             set([20, 22]))
 
-    @mock.patch('pypowervm.jobs.network_bridger.remove_vlan_from_nb')
-    @mock.patch('pypowervm.jobs.network_bridger.ensure_vlans_on_nb')
+    @mock.patch('pypowervm.tasks.network_bridger.remove_vlan_from_nb')
+    @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'PVMUtils')
     def test_heal_and_optimize(self, mock_utils, mock_nbr_ensure,
