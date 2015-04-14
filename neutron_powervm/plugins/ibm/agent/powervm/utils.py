@@ -219,10 +219,10 @@ class PVMUtils(object):
         total_cnas = []
 
         for vm in vms:
-            for cna_uri in vm.cna_uris:
-                cna_resp = self.adapter.read_by_href(cna_uri)
-                ent = pvm_net.CNA.wrap(cna_resp)
-                total_cnas.append(ent)
+            vm_cna_feed_resp = self.adapter.read(
+                pvm_lpar.LPAR.schema_type, root_id=vm.uuid,
+                child_type=pvm_net.CNA.schema_type)
+            total_cnas.extend(pvm_net.CNA.wrap(vm_cna_feed_resp))
 
         return total_cnas
 

@@ -128,7 +128,7 @@ class UtilsTest(base.BasePVMTestCase):
         vm_list = test_utils._list_vm_entries()
         self.assertEqual(17, len(vm_list))
         for vm in vm_list:
-            self.assertTrue(len(vm.cna_uris) > 0)
+            self.assertIsNotNone(vm.uuid)
 
     def test_get_vswitch_map(self):
         test_utils = self.__build_fake_utils(self.vswitch_resp)
@@ -163,7 +163,8 @@ class UtilsTest(base.BasePVMTestCase):
                                                   vswitch_map)
         self.assertIsNone(resp)
 
-    def test_list_client_adpts(self):
+    @mock.patch('pypowervm.wrappers.network.CNA.wrap')
+    def test_list_client_adpts(self, mock_cna_wrap):
         '''
         Validates that the CNA's can be iterated against.
         '''
@@ -172,14 +173,15 @@ class UtilsTest(base.BasePVMTestCase):
         # Override the VM Entries with a fake CNA
         class FakeVM(object):
             @property
-            def cna_uris(self):
-                return ['mocked']
+            def uuid(self):
+                return 'fake_uuid'
         vm = FakeVM()
 
         def list_vms():
             return [vm]
 
         test_utils._list_vm_entries = list_vms
+        mock_cna_wrap.return_value = ['mocked']
 
         # Get the CNAs and validate
         cnas = test_utils.list_client_adpts()
