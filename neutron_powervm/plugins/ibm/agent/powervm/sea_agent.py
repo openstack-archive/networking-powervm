@@ -14,6 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import copy
 import eventlet
 eventlet.monkey_patch()
 
@@ -22,7 +23,8 @@ from oslo_log import log as logging
 
 from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
-from neutron.i18n import _LW
+from neutron.i18n import _LW, _LE
+from neutron.openstack.common import loopingcall
 from pypowervm.tasks import network_bridger as net_br
 
 from neutron_powervm.plugins.ibm.agent.powervm import agent_base
@@ -52,6 +54,72 @@ a_config.register_root_helper(cfg.CONF)
 ACONF = cfg.CONF.AGENT
 
 
+class UpdateVLANRequest(object):
+    """Used for the async update of the PVIDs on ports."""
+
+    def __init__(self, mac_address, pvid):
+        self.mac_address = mac_address
+        self.pvid = pvid
+        self.attempt_count = 0
+
+
+class PVIDLooper(object):
+    """This class is used to monitor and apply update PVIDs to CNAs.
+
+    When Neutron receives a Port Create request, the client CNA needs to have
+    the appropriate VLAN applied to it.  However, the port create is usually
+    done before the CNA actually exists.
+
+    This class will listen for a period of time, and when the CNA becomes
+    available, will update the CNA with the appropriate PVID.
+    """
+
+    def __init__(self, api_utils):
+        """Initializes the looper.
+
+        :param api_utils: The API utilities
+        """
+        self.requests = []
+        self.api_utils = api_utils
+
+    def update(self):
+        """Performs a loop and updates all of the queued requests."""
+        current_requests = copy.copy(self.requests)
+
+        # No requests, do nothing.
+        if len(current_requests) == 0:
+            return
+
+        # Get all the Client Network Adapters once up front, as it can be
+        # expensive.
+        client_adpts = self.api_utils.list_cnas()
+
+        # Loop through the current requests.  Try to update the PVIDs, but
+        # if we are unable, then increment the attempt count.
+        for request in current_requests:
+            cna = self.api_utils.find_cna_for_mac(request.mac_address,
+                                                  client_adpts)
+            if cna:
+                # Found the adapter!  Update it
+                cna.pvid = request.pvid
+                cna.update(self.api_utils.adapter)
+                self.requests.remove(request)
+            else:
+                # Increment the request count.
+                request.attempt_count += 1
+                if request.attempt_count >= 10:
+                    LOG.error(_LE("Unable to update PVID to %(pvid)s for "
+                                  "MAC Address %(mac)s as there was no valid "
+                                  "network adapter found.") %
+                              {'pvid': request.pvid,
+                               'mac': request.mac_address})
+                    self.requests.remove(request)
+
+    def add(self, request):
+        """Adds a new request to the looper utility."""
+        self.requests.append(request)
+
+
 class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
     '''
     Provides VLAN networks for the PowerVM platform that run accross the
@@ -66,6 +134,12 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         super(SharedEthernetNeutronAgent, self).__init__(name, agent_type)
 
         self.br_map = self.api_utils.parse_sea_mappings(ACONF.bridge_mappings)
+
+        # A looping utility that updates asynchronously the PVIDs on the
+        # Client Network Adapters (CNAs)
+        self.pvid_updater = PVIDLooper(self.api_utils)
+        pvid_l = loopingcall.FixedIntervalLoopingCall(self.pvid_updater.update)
+        pvid_l.start(interval=2)
 
     def heal_and_optimize(self, is_boot):
         """Heals the system's network bridges and optimizes.
@@ -86,7 +160,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         """
 
         # List all our clients
-        client_adpts = self.api_utils.list_client_adpts()
+        client_adpts = self.api_utils.list_cnas()
 
         # Get all the devices that Neutron knows for this host.  Note that
         # we pass in all of the macs on the system.  For VMs that neutron does
@@ -133,8 +207,8 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         # Bridge uses them.
         vswitch_map = self.api_utils.get_vswitch_map()
         for client_adpt in client_adpts:
-            nb = self.api_utils.find_nb_for_client_adpt(nb_wraps, client_adpt,
-                                                        vswitch_map)
+            nb = self.api_utils.find_nb_for_cna(nb_wraps, client_adpt,
+                                                vswitch_map)
             # Could occur if a system is internal only.
             if nb is None:
                 LOG.debug("Client Adapter with mac %s is internal only." %
@@ -191,15 +265,22 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
                                                         self.agent_id,
                                                         ACONF.pvm_host_mtms)
 
-        # Break the ports into their respective lists broken down by
-        # Network Bridge.
         nb_to_vlan = {}
         for dev in devs:
+            # Break the ports into their respective lists broken down by
+            # Network Bridge.
             phys_net = dev.get('physical_network')
             nb_uuid = self.br_map.get(phys_net)
             if nb_to_vlan.get(nb_uuid) is None:
                 nb_to_vlan[nb_uuid] = set()
-            nb_to_vlan[nb_uuid].add(dev.get('segmentation_id'))
+
+            pvid = dev.get('segmentation_id')
+            nb_to_vlan[nb_uuid].add(pvid)
+
+            # Also need to update each client network adapter to have the
+            # correct PVID.
+            update_req = UpdateVLANRequest(dev.get('mac_address'), pvid)
+            self.pvid_updater.add(update_req)
 
         # For each bridge, make sure the VLANs are serviced.
         for nb_uuid in nb_to_vlan.keys():

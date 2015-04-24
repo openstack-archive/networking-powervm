@@ -1,4 +1,4 @@
-# Copyright 2014 IBM Corp.
+# Copyright 2014, 2015 IBM Corp.
 #
 # All Rights Reserved.
 #
@@ -55,10 +55,10 @@ def FakeNB(uuid, pvid, tagged_vlans, addl_vlans):
     return m
 
 
-class SimpleTest(base.BasePVMTestCase):
+class SEAAgentTest(base.BasePVMTestCase):
 
     def setUp(self):
-        super(SimpleTest, self).setUp()
+        super(SEAAgentTest, self).setUp()
 
         with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                         'PVMUtils'):
@@ -150,7 +150,7 @@ class SimpleTest(base.BasePVMTestCase):
         # Fake adapters already on system.
         adpts = [FakeClientAdpt('00', 30, []),
                  FakeClientAdpt('11', 31, [32, 33, 34])]
-        mock_utils.list_client_adpts.return_value = adpts
+        mock_utils.list_cnas.return_value = adpts
 
         # The neutron data.  These will be 'ensured' on the bridge.
         self.agent.plugin_rpc = mock.MagicMock()
@@ -164,7 +164,7 @@ class SimpleTest(base.BasePVMTestCase):
         mock_nb1 = FakeNB('nb_uuid', 20, [], [])
         mock_nb2 = FakeNB('nb2_uuid', 40, [41, 42, 43], [44, 45, 46])
         mock_utils.list_bridges.return_value = [mock_nb1, mock_nb2]
-        mock_utils.find_nb_for_client_adpt.return_value = mock_nb2
+        mock_utils.find_nb_for_cna.return_value = mock_nb2
 
         # Invoke
         self.agent.heal_and_optimize(False)
@@ -193,3 +193,52 @@ class SimpleTest(base.BasePVMTestCase):
 
         # Make sure that the loopingcall had an interval of 5.
         instance.start.assert_called_with(interval=5)
+
+
+class PVIDLooperTest(base.BasePVMTestCase):
+
+    def setUp(self):
+        super(PVIDLooperTest, self).setUp()
+
+        self.mock_utils = mock.MagicMock()
+        self.looper = sea_agent.PVIDLooper(self.mock_utils)
+
+    def test_add(self):
+        req = sea_agent.UpdateVLANRequest('a', 27)
+        self.assertEqual(0, len(self.looper.requests))
+        self.looper.add(req)
+        self.assertEqual(1, len(self.looper.requests))
+
+    def test_update(self):
+        req = sea_agent.UpdateVLANRequest('a', 27)
+        self.looper.add(req)
+
+        # Mock the element returned
+        mock_cna = mock.MagicMock()
+        self.mock_utils.find_cna_for_mac.return_value = mock_cna
+
+        # Call the update
+        self.looper.update()
+
+        # Check to make sure the request was pulled off
+        self.assertEqual(0, len(self.looper.requests))
+
+        # Make sure the mock CNA had update called, and the vid set correctly
+        self.assertEqual(1, mock_cna.update.call_count)
+        self.assertEqual(27, mock_cna.pvid)
+
+    def test_update_err(self):
+        """Tests that the loop will error out after multiple loops."""
+        req = sea_agent.UpdateVLANRequest('a', 27)
+        self.looper.add(req)
+
+        # Mock the element returned
+        self.mock_utils.find_cna_for_mac.return_value = None
+
+        for i in range(1, 11):
+            # Call the update
+            self.looper.update()
+
+            # Check to make sure the request was pulled off
+            required_count = 1 if i < 10 else 0
+            self.assertEqual(required_count, len(self.looper.requests))

@@ -1,4 +1,4 @@
-# Copyright 2014 IBM Corp.
+# Copyright 2014, 2015 IBM Corp.
 #
 # All Rights Reserved.
 #
@@ -142,19 +142,19 @@ class PVMUtils(object):
         mac = mac.lower().replace(':', '')
         return ':'.join(mac[i:i + 2] for i in range(0, len(mac), 2))
 
-    def find_client_adpt_for_mac(self, mac, client_adpts=None):
+    def find_cna_for_mac(self, mac, client_adpts=None):
         '''
         Will return the appropriate client adapter for a given mac address.
 
         :param mac: The mac address of the client adapter.
         :param client_adpts: The Client Adapters.  Should be passed in for
                              performance reasons.  If not, will invoke
-                             list_client_adpts.
+                             list_cnas.
         :returns: The Client Adapter for the mac.  If one isn't found, then
                   None will be returned.
         '''
         if not client_adpts:
-            client_adpts = self.list_client_adpts()
+            client_adpts = self.list_cnas()
 
         mac = pvm_util.sanitize_mac_for_api(mac)
 
@@ -165,7 +165,7 @@ class PVMUtils(object):
         # None was found.
         return None
 
-    def find_nb_for_client_adpt(self, nb_wraps, client_adpt, vswitch_map):
+    def find_nb_for_cna(self, nb_wraps, client_adpt, vswitch_map):
         """
         Determines the NetworkBridge (if any) that is supporting a client
         adapter.
@@ -210,7 +210,7 @@ class PVMUtils(object):
         return resp
 
     @pvm_retry.retry()
-    def list_client_adpts(self):
+    def list_cnas(self):
         '''
         Lists all of the Client Network Adapters for the running virtual
         machines.

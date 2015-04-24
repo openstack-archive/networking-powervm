@@ -91,16 +91,16 @@ class UtilsTest(base.BasePVMTestCase):
 
         return FakeCNA()
 
-    def test_find_client_adpt_for_mac(self):
+    def test_find_cna_for_mac(self):
         ut = self.__build_fake_utils(None)
 
         cna1 = self.__cna("1234567890AB")
         cna2 = self.__cna("123456789012")
 
-        self.assertEqual(cna1, ut.find_client_adpt_for_mac("1234567890AB",
-                                                           [cna1, cna2]))
-        self.assertEqual(None, ut.find_client_adpt_for_mac("9876543210AB",
-                                                           [cna1, cna2]))
+        self.assertEqual(cna1, ut.find_cna_for_mac("1234567890AB",
+                                                   [cna1, cna2]))
+        self.assertEqual(None, ut.find_cna_for_mac("9876543210AB",
+                                                   [cna1, cna2]))
 
     def test_norm_mac(self):
         ut = self.__build_fake_utils(None)
@@ -142,7 +142,7 @@ class UtilsTest(base.BasePVMTestCase):
                          'e1a852cb-2be5-3a51-9147-43761bc3d720',
                          resp[0])
 
-    def test_find_nb_for_client_adpt(self):
+    def test_find_nb_for_cna(self):
         test_utils = self.__build_fake_utils(self.vswitch_resp)
 
         nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
@@ -157,18 +157,18 @@ class UtilsTest(base.BasePVMTestCase):
         vswitch_map = test_utils.get_vswitch_map()
 
         # Should have a proper URI, so it should match
-        resp = test_utils.find_nb_for_client_adpt(nb_wraps, mock_client_adpt,
-                                                  vswitch_map)
+        resp = test_utils.find_nb_for_cna(nb_wraps, mock_client_adpt,
+                                          vswitch_map)
         self.assertIsNotNone(resp)
 
         # Should not match if we change the vswitch URI
         mock_client_adpt.vswitch_uri = "Fake"
-        resp = test_utils.find_nb_for_client_adpt(nb_wraps, mock_client_adpt,
-                                                  vswitch_map)
+        resp = test_utils.find_nb_for_cna(nb_wraps, mock_client_adpt,
+                                          vswitch_map)
         self.assertIsNone(resp)
 
     @mock.patch('pypowervm.wrappers.network.CNA.wrap')
-    def test_list_client_adpts(self, mock_cna_wrap):
+    def test_list_cnas(self, mock_cna_wrap):
         '''
         Validates that the CNA's can be iterated against.
         '''
@@ -188,5 +188,5 @@ class UtilsTest(base.BasePVMTestCase):
         mock_cna_wrap.return_value = ['mocked']
 
         # Get the CNAs and validate
-        cnas = test_utils.list_client_adpts()
+        cnas = test_utils.list_cnas()
         self.assertEqual(1, len(cnas))
