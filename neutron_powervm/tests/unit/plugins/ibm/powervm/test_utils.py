@@ -23,6 +23,7 @@ from neutron_powervm.tests.unit.plugins.ibm.powervm import fixtures
 
 import os
 
+from pypowervm.tests import fixtures as pvm_fx
 from pypowervm.tests.wrappers.util import pvmhttp
 from pypowervm.wrappers import network as pvm_net
 
@@ -44,9 +45,12 @@ class UtilsTest(base.BasePVMTestCase):
         data_dir = os.path.dirname(os.path.abspath(__file__))
         data_dir = os.path.join(data_dir, 'data')
 
+        pvm_trait = self.useFixture(pvm_fx.LocalPVMTraitsFx).traits
+
         def resp(file_name):
             file_path = os.path.join(data_dir, file_name)
-            return pvmhttp.load_pvm_resp(file_path).get_response()
+            return pvmhttp.load_pvm_resp(
+                file_path, traits=pvm_trait).get_response()
 
         self.net_br_resp = resp(NET_BR_FILE)
         self.vm_feed_resp = resp(VM_FILE)
