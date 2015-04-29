@@ -88,7 +88,8 @@ class PVMUtils(object):
         # Need to find a list of all the VIOSes names to hrefs
         vio_feed = self.adapter.read(pvm_ms.System.schema_type,
                                      root_id=self.host_id,
-                                     child_type=pvm_vios.VIOS.schema_type)
+                                     child_type=pvm_vios.VIOS.schema_type,
+                                     xag=[pvm_vios.VIOS.xags.NETWORK])
         vio_wraps = pvm_vios.VIOS.wrap(vio_feed)
 
         # Response dictionary
@@ -110,7 +111,8 @@ class PVMUtils(object):
             matching_nb = None
             for nb_wrap in nb_wraps:
                 for sea in nb_wrap.seas:
-                    if sea.dev_name == keys[1] and sea.vio_uri == vio_w.href:
+                    if (sea.dev_name == keys[1] and
+                            sea.vio_uri == vio_w.related_href):
                         # Found the matching SEA.
                         matching_nb = nb_wrap
                         break

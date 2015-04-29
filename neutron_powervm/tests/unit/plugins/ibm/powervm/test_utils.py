@@ -31,6 +31,7 @@ NET_BR_FILE = 'fake_network_bridge.txt'
 VM_FILE = 'fake_lpar_feed.txt'
 CNA_FILE = 'fake_cna.txt'
 VSW_FILE = 'fake_virtual_switch.txt'
+VIOS_FILE = 'fake_vios_feed.txt'
 
 
 class UtilsTest(base.BasePVMTestCase):
@@ -56,6 +57,7 @@ class UtilsTest(base.BasePVMTestCase):
         self.vm_feed_resp = resp(VM_FILE)
         self.cna_resp = resp(CNA_FILE)
         self.vswitch_resp = resp(VSW_FILE)
+        self.vios_feed_resp = resp(VIOS_FILE)
 
     def __build_fake_utils(self, feed):
         '''
@@ -190,3 +192,17 @@ class UtilsTest(base.BasePVMTestCase):
         # Get the CNAs and validate
         cnas = test_utils.list_cnas()
         self.assertEqual(1, len(cnas))
+
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.PVMUtils.'
+                'list_bridges')
+    def test_parse_sea_mappings(self, mock_list_br):
+        nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
+        mock_list_br.return_value = nb_wraps
+
+        test_utils = self.__build_fake_utils(self.vios_feed_resp)
+        resp = test_utils.parse_sea_mappings('default:ent8:21-25D0A')
+
+        self.assertEqual(1, len(resp.keys()))
+        self.assertEqual('default', resp.keys()[0])
+        self.assertEqual('764f3423-04c5-3b96-95a3-4764065400bd',
+                         resp['default'])
