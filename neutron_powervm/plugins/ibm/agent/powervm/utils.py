@@ -39,18 +39,13 @@ class PVMUtils(object):
     this holds the implementation for the methods.
     '''
 
-    def __init__(self, pvm_server_ip, username, password, host_mtms):
+    def __init__(self, host_mtms):
         '''
         Initializes the utility class.
 
-        :param pvm_server_ip: The IP address of the PowerVM API server.
-        :param username: The user name for API operations.
-        :param password: The password for the API operations.
         :param host_mtms: The host MTMS for the system.
         '''
-        session = adapter.Session(pvm_server_ip, username, password,
-                                  certpath=False)
-        self.adapter = adapter.Adapter(session)
+        self.adapter = adapter.Adapter(adapter.Session())
         self.host_id = self._get_host_uuid(host_mtms)
 
     def _get_host_uuid(self, host_mtms):

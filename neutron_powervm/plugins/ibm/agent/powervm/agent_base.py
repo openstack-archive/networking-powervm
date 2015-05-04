@@ -47,21 +47,11 @@ agent_opts = [
                       'heal/optimize intervals.  Should be higher than the '
                       'polling_interval as it runs in the nearest polling '
                       'loop.')),
-    # TODO(thorst) Reevaluate as the API auth model evolves
     cfg.StrOpt('pvm_host_mtms',
                default='',
                help='The Model Type/Serial Number of the host server to '
                     'manage.  Format is MODEL-TYPE*SERIALNUM.  Example is '
-                    '8286-42A*1234ABC.'),
-    cfg.StrOpt('pvm_server_ip',
-               default='localhost',
-               help='The IP Address hosting the PowerVM REST API'),
-    cfg.StrOpt('pvm_user_id',
-               default='',
-               help='The user id for authentication into the API.'),
-    cfg.StrOpt('pvm_pass',
-               default='',
-               help='The password for authentication into the API.')
+                    '8286-42A*1234ABC.')
 ]
 
 cfg.CONF.register_opts(agent_opts, "AGENT")
@@ -133,9 +123,7 @@ class BasePVMNeutronAgent(object):
 
         # Create the utility class that enables work against the Hypervisors
         # Shared Ethernet NetworkBridge.
-        password = ACONF.pvm_pass.decode('base64', 'strict')
-        self.api_utils = utils.PVMUtils(ACONF.pvm_server_ip, ACONF.pvm_user_id,
-                                        password, ACONF.pvm_host_mtms)
+        self.api_utils = utils.PVMUtils(ACONF.pvm_host_mtms)
 
     def setup_rpc(self):
         """Registers the RPC consumers for the plugin."""
