@@ -225,6 +225,9 @@ class PVIDLooperTest(base.BasePVMTestCase):
 
         # Make sure the mock CNA had update called, and the vid set correctly
         self.assertEqual(1, mock_cna.update.call_count)
+
+        # Make sure no parms in the update
+        mock_cna.update.assert_called_with()
         self.assertEqual(27, mock_cna.pvid)
 
     def test_update_err(self):

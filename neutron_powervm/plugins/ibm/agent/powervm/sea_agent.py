@@ -102,7 +102,7 @@ class PVIDLooper(object):
             if cna:
                 # Found the adapter!  Update it
                 cna.pvid = request.pvid
-                cna.update(self.api_utils.adapter)
+                cna.update()
                 self.requests.remove(request)
             else:
                 # Increment the request count.
