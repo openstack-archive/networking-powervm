@@ -71,7 +71,7 @@ class UtilsTest(base.BasePVMTestCase):
         fake_adapter.read_by_href.return_value = feed
         with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                         'PVMUtils._get_host_uuid'):
-            test_utils = utils.PVMUtils(None)
+            test_utils = utils.PVMUtils()
         test_utils.adapter = fake_adapter
         return test_utils
 

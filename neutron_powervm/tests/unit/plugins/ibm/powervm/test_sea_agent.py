@@ -136,7 +136,7 @@ class SEAAgentTest(base.BasePVMTestCase):
 
         # Validate that both VLANs are in one call
         mock_ensure.assert_called_once_with(mock.ANY, mock.ANY, 'nb_uuid',
-                                            set([20, 22]))
+                                            {20, 22})
 
     @mock.patch('pypowervm.tasks.network_bridger.remove_vlan_from_nb')
     @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')

@@ -168,8 +168,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         client_macs = [self.api_utils.norm_mac(x.mac) for x in client_adpts]
         devs = self.plugin_rpc.get_devices_details_list(self.context,
                                                         client_macs,
-                                                        self.agent_id,
-                                                        ACONF.pvm_host_mtms)
+                                                        self.agent_id)
 
         # Dictionary of the required VLANs on the Network Bridge
         nb_req_vlans = {}
@@ -262,8 +261,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         dev_list = [x.get('mac_address') for x in ports]
         devs = self.plugin_rpc.get_devices_details_list(self.context,
                                                         dev_list,
-                                                        self.agent_id,
-                                                        ACONF.pvm_host_mtms)
+                                                        self.agent_id)
 
         nb_to_vlan = {}
         for dev in devs:

@@ -46,12 +46,7 @@ agent_opts = [
                help=_('The number of seconds the agent should wait between '
                       'heal/optimize intervals.  Should be higher than the '
                       'polling_interval as it runs in the nearest polling '
-                      'loop.')),
-    cfg.StrOpt('pvm_host_mtms',
-               default='',
-               help='The Model Type/Serial Number of the host server to '
-                    'manage.  Format is MODEL-TYPE*SERIALNUM.  Example is '
-                    '8286-42A*1234ABC.')
+                      'loop.'))
 ]
 
 cfg.CONF.register_opts(agent_opts, "AGENT")
@@ -123,7 +118,7 @@ class BasePVMNeutronAgent(object):
 
         # Create the utility class that enables work against the Hypervisors
         # Shared Ethernet NetworkBridge.
-        self.api_utils = utils.PVMUtils(ACONF.pvm_host_mtms)
+        self.api_utils = utils.PVMUtils()
 
     def setup_rpc(self):
         """Registers the RPC consumers for the plugin."""

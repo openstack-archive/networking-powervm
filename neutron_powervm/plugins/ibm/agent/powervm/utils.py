@@ -16,7 +16,7 @@
 
 from oslo_log import log as logging
 
-from neutron.i18n import _LE, _LW
+from neutron.i18n import _, _LE, _LW
 
 from pypowervm import adapter
 from pypowervm import util as pvm_util
@@ -39,22 +39,21 @@ class PVMUtils(object):
     this holds the implementation for the methods.
     '''
 
-    def __init__(self, host_mtms):
+    def __init__(self):
         '''
         Initializes the utility class.
-
-        :param host_mtms: The host MTMS for the system.
         '''
         self.adapter = adapter.Adapter(adapter.Session())
-        self.host_id = self._get_host_uuid(host_mtms)
+        self.host_id = self._get_host_uuid()
 
-    def _get_host_uuid(self, host_mtms):
-        # Need to get a list of the hosts, then find the matching one
-        resp = self.adapter.read(pvm_ms.System.schema_type)
-        host = pvm_ms.find_entry_by_mtms(resp, host_mtms)
-        if not host:
-            raise Exception("Host %s not found" % host_mtms)
-        return host.uuid
+    def _get_host_uuid(self):
+        """Get the System wrapper and its UUID for the (single) host."""
+        syswraps = pvm_ms.System.wrap(
+            self.adapter.read(pvm_ms.System.schema_type))
+        if len(syswraps) != 1:
+            raise Exception(
+                _("Expected exactly one host; found %d"), len(syswraps))
+        return syswraps[0].uuid
 
     def parse_sea_mappings(self, mapping):
         """This method will parse the sea mappings, and return a UUID map.
