@@ -16,7 +16,7 @@
 
 from oslo_log import log as logging
 
-from neutron.i18n import _, _LE, _LW
+from neutron.i18n import _, _LW
 
 from pypowervm import adapter
 from pypowervm import util as pvm_util
@@ -115,9 +115,9 @@ class PVMUtils(object):
             if matching_nb is not None:
                 resp[keys[0]] = matching_nb.uuid
             else:
-                raise Exception(_LE('Device %(dev)s on Virtual I/O Server '
-                                    '%(vios)s was not found.  Unable to set '
-                                    'up physical network %(phys_net)s.') %
+                raise Exception(_('Device %(dev)s on Virtual I/O Server '
+                                  '%(vios)s was not found.  Unable to set '
+                                  'up physical network %(phys_net)s.'),
                                 {'dev': keys[1], 'vios': keys[2],
                                  'phys_net': keys[0]})
 

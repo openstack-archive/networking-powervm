@@ -29,6 +29,7 @@ from neutron.common import config as n_config
 from neutron.common import constants as q_const
 from neutron.common import topics
 from neutron import context as ctx
+from neutron.i18n import _, _LE, _LI
 from neutron.openstack.common import loopingcall
 
 from neutron_powervm.plugins.ibm.agent.powervm import constants as p_const
@@ -84,11 +85,11 @@ class FakeSharedEthernetRpcCallbacks(object):
     def port_update(self, context, **kwargs):
         port = kwargs['port']
         self.agent._update_port(port)
-        LOG.debug(_("port_update RPC received for port: %s"), port['id'])
+        LOG.debug("port_update RPC received for port: %s", port['id'])
 
     def network_delete(self, context, **kwargs):
         network_id = kwargs.get('network_id')
-        LOG.debug(_("network_delete RPC received for network: %s"), network_id)
+        LOG.debug("network_delete RPC received for network: %s", network_id)
 
 
 class FakeSharedEthernetNeutronAgent():
@@ -164,13 +165,13 @@ class FakeSharedEthernetNeutronAgent():
                                         self.agent_state)
             self.agent_state.pop('start_flag', None)
         except Exception:
-            LOG.exception(_("Failed reporting state!"))
+            LOG.exception(_LE("Failed reporting state!"))
 
     def _update_port(self, port):
         '''
         Invoked to indicate that a port has been updated within Neutron.
         '''
-        self.updated_ports.append(port)
+        self.updated_ports.add(port)
 
     def _list_updated_ports(self):
         '''
@@ -178,7 +179,7 @@ class FakeSharedEthernetNeutronAgent():
         from the system.
         '''
         ports = copy.copy(self.updated_ports)
-        self.updated_ports = []
+        self.updated_ports = set()
         return ports
 
     def _scan_port_delta(self, updated_ports):
@@ -229,7 +230,7 @@ def main():
 
     # Build then run the agent
     agent = FakeSharedEthernetNeutronAgent()
-    LOG.info(_("Simulated Shared Ethernet Agent initialized and running"))
+    LOG.info(_LI("Simulated Shared Ethernet Agent initialized and running"))
     agent.rpc_loop()
 
 

@@ -27,7 +27,7 @@ from neutron.agent import rpc as agent_rpc
 from neutron.common import constants as q_const
 from neutron.common import topics
 from neutron import context as ctx
-from neutron.i18n import _LW, _LE
+from neutron.i18n import _, _LW, _LE
 from neutron.openstack.common import loopingcall
 
 from neutron_powervm.plugins.ibm.agent.powervm import utils
@@ -88,13 +88,13 @@ class PVMRpcCallbacks(object):
     def port_update(self, context, **kwargs):
         port = kwargs['port']
         self.agent._update_port(port)
-        LOG.debug(_("port_update RPC received for port: %s"), port['id'])
+        LOG.debug("port_update RPC received for port: %s", port['id'])
 
     def network_delete(self, context, **kwargs):
         network_id = kwargs.get('network_id')
 
         # TODO(thorst) Need to perform the call back
-        LOG.debug(_("network_delete RPC received for network: %s"), network_id)
+        LOG.debug("network_delete RPC received for network: %s", network_id)
 
 
 class BasePVMNeutronAgent(object):
@@ -169,7 +169,7 @@ class BasePVMNeutronAgent(object):
         '''
         Invoked to indicate that a port has been updated within Neutron.
         '''
-        self.updated_ports.append(port)
+        self.updated_ports.add(port)
 
     def _list_updated_ports(self):
         '''
@@ -177,7 +177,7 @@ class BasePVMNeutronAgent(object):
         from the system.
         '''
         ports = copy.copy(self.updated_ports)
-        self.updated_ports = []
+        self.updated_ports = set()
         return ports
 
     def heal_and_optimize(self, is_boot):
@@ -233,7 +233,7 @@ class BasePVMNeutronAgent(object):
 
                 # If there are no updated ports, just sleep and re-loop
                 if not u_ports:
-                    LOG.debug("No changes, sleeping %d seconds." %
+                    LOG.debug("No changes, sleeping %d seconds.",
                               ACONF.polling_interval)
                     time.sleep(ACONF.polling_interval)
                     continue

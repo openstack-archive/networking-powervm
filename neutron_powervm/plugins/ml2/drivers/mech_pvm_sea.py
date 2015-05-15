@@ -46,7 +46,7 @@ class PvmSEAMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
     def check_segment_for_agent(self, segment, agent):
         # TODO(thorst) Define appropriate mapping.  Determine whether
         # this VLAN / segment can be supported by the agent.
-        LOG.debug("Checking segment: %(segment)s" % {'segment': segment})
+        LOG.debug("Checking segment: %s", segment)
         network_type = segment[api.NETWORK_TYPE]
         return network_type in ['vlan']
 
@@ -56,7 +56,7 @@ class PvmSEAMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
         # it appears this isn't flowing properly.  This makes sure the
         # port is passed down to the agent.
         bindable = (super(PvmSEAMechanismDriver, self).
-                try_to_bind_segment_for_agent(context, segment, agent))
+                    try_to_bind_segment_for_agent(context, segment, agent))
         if bindable:
             self.rpc_publisher.port_update(context._plugin_context,
                                            context._port,

@@ -23,7 +23,7 @@ from oslo_log import log as logging
 
 from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
-from neutron.i18n import _LW, _LE
+from neutron.i18n import _LW, _LE, _LI
 from neutron.openstack.common import loopingcall
 from pypowervm.tasks import network_bridger as net_br
 
@@ -110,7 +110,7 @@ class PVIDLooper(object):
                 if request.attempt_count >= 10:
                     LOG.error(_LE("Unable to update PVID to %(pvid)s for "
                                   "MAC Address %(mac)s as there was no valid "
-                                  "network adapter found.") %
+                                  "network adapter found."),
                               {'pvid': request.pvid,
                                'mac': request.mac_address})
                     self.requests.remove(request)
@@ -210,7 +210,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
                                                 vswitch_map)
             # Could occur if a system is internal only.
             if nb is None:
-                LOG.debug("Client Adapter with mac %s is internal only." %
+                LOG.debug("Client Adapter with mac %s is internal only.",
                           client_adpt.mac)
                 continue
 
@@ -241,8 +241,8 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
             vlans_to_del = existing_vlans - req_vlans
             for vlan_to_del in vlans_to_del:
                 LOG.warn(_LW("Cleaning up VLAN %(vlan)s from the system.  "
-                             "It is no longer in use.") %
-                         {'vlan': str(vlan_to_del)})
+                             "It is no longer in use."),
+                         {'vlan': vlan_to_del})
                 net_br.remove_vlan_from_nb(self.api_utils.adapter,
                                            self.api_utils.host_id, nb.uuid,
                                            vlan_to_del)
@@ -294,7 +294,7 @@ def main():
 
     # Build then run the agent
     agent = SharedEthernetNeutronAgent()
-    LOG.info(_("Shared Ethernet Agent initialized and running"))
+    LOG.info(_LI("Shared Ethernet Agent initialized and running"))
     agent.rpc_loop()
 
 
