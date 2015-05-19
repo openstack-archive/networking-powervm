@@ -16,7 +16,7 @@
 
 from oslo_log import log as logging
 
-from neutron.i18n import _, _LW
+from neutron.i18n import _LW
 
 from pypowervm import adapter
 from pypowervm import util as pvm_util
@@ -25,6 +25,8 @@ from pypowervm.wrappers import logical_partition as pvm_lpar
 from pypowervm.wrappers import managed_system as pvm_ms
 from pypowervm.wrappers import network as pvm_net
 from pypowervm.wrappers import virtual_io_server as pvm_vios
+
+from neutron_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
 
 LOG = logging.getLogger(__name__)
 
@@ -51,8 +53,7 @@ class PVMUtils(object):
         syswraps = pvm_ms.System.wrap(
             self.adapter.read(pvm_ms.System.schema_type))
         if len(syswraps) != 1:
-            raise Exception(
-                _("Expected exactly one host; found %d"), len(syswraps))
+            raise np_exc.MultipleHostsFound(host_count=len(syswraps))
         return syswraps[0].uuid
 
     def parse_sea_mappings(self, mapping):
@@ -78,6 +79,12 @@ class PVMUtils(object):
         """
         # Read all the network bridges.
         nb_wraps = self.list_bridges()
+
+        if len(nb_wraps) == 0:
+            raise np_exc.NoNetworkBridges()
+        # Did the user specify the mapping?
+        if mapping == '':
+            return self.parse_empty_bridge_mapping(nb_wraps)
 
         # Need to find a list of all the VIOSes names to hrefs
         vio_feed = self.adapter.read(pvm_ms.System.schema_type,
@@ -115,13 +122,37 @@ class PVMUtils(object):
             if matching_nb is not None:
                 resp[keys[0]] = matching_nb.uuid
             else:
-                raise Exception(_('Device %(dev)s on Virtual I/O Server '
-                                  '%(vios)s was not found.  Unable to set '
-                                  'up physical network %(phys_net)s.'),
-                                {'dev': keys[1], 'vios': keys[2],
-                                 'phys_net': keys[0]})
+                raise np_exc.DeviceNotFound(dev=keys[1], vios=keys[2],
+                                            phys_net=keys[0])
 
         return resp
+
+    def _parse_empty_bridge_mapping(self, bridges):
+        """Will attempt to derive a bridge mapping if not specified.
+
+        This method is invoked if there is no bridge mapping specified.
+        If this happens, it will determine if there is a single Network Bridge
+        on the system.  If so, it will assert that the default Neutron
+        physical network resides on the singular Network Bridge.
+
+        If there are multiple Network Bridges, an exception is raised.
+
+        This does allow systems to not require the bridge mappings, but it
+        is not ideal.
+
+        :param bridges: A list of the network bridges returned via the API.
+        :return: The bridge mapping, with a single physical network (default).
+        :raises MultiBridgeNoMapping: Thrown if there are multiple Network
+                                      Bridges on the system.
+        """
+        if len(bridges) > 1:
+            raise np_exc.MultiBridgeNoMapping()
+
+        LOG.warn(_LW('The bridge_mappings for the agent was not specified.  '
+                     'There was exactly one Network Bridge on the system.  '
+                     'Agent is assuming the default network is backed by the '
+                     'single Network Bridge.'))
+        return {'default': bridges[0].uuid}
 
     def norm_mac(self, mac):
         '''

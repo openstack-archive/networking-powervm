@@ -16,6 +16,7 @@
 
 import mock
 
+from neutron_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
 from neutron_powervm.plugins.ibm.agent.powervm import utils
 
 from neutron_powervm.tests.unit.plugins.ibm.powervm import base
@@ -207,3 +208,37 @@ class UtilsTest(base.BasePVMTestCase):
         self.assertEqual('default', resp.keys()[0])
         self.assertEqual('764f3423-04c5-3b96-95a3-4764065400bd',
                          resp['default'])
+
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.PVMUtils.'
+                'list_bridges')
+    def test_parse_sea_mappings_no_bridges(self, mock_list_br):
+        mock_list_br.return_value = []
+        test_utils = self.__build_fake_utils(self.vios_feed_resp)
+        self.assertRaises(np_exc.NoNetworkBridges,
+                          test_utils.parse_sea_mappings, '1:2:3')
+
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.PVMUtils.'
+                'list_bridges')
+    def test_parse_sea_mappings_no_mapping(self, mock_list_br):
+        nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
+        mock_list_br.return_value = nb_wraps
+
+        test_utils = self.__build_fake_utils(self.vios_feed_resp)
+        resp = test_utils.parse_sea_mappings('default:ent8:21-25D0A')
+
+        self.assertEqual({'default': '764f3423-04c5-3b96-95a3-4764065400bd'},
+                         resp)
+
+    def test_parse_empty_bridge_mappings(self):
+        test_utils = self.__build_fake_utils(self.vios_feed_resp)
+
+        proper_wrap = mock.MagicMock()
+        proper_wrap.uuid = '5'
+        resp = test_utils._parse_empty_bridge_mapping([proper_wrap])
+
+        self.assertEqual({'default': '5'}, resp)
+
+        # Try the failure path
+        self.assertRaises(np_exc.MultiBridgeNoMapping,
+                          test_utils._parse_empty_bridge_mapping,
+                          [proper_wrap, mock.Mock()])
