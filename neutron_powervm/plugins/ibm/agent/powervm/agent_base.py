@@ -114,7 +114,7 @@ class BasePVMNeutronAgent(object):
         self.setup_rpc()
 
         # A list of ports that maintains the list of current 'modified' ports
-        self.updated_ports = set()
+        self.updated_ports = []
 
         # Create the utility class that enables work against the Hypervisors
         # Shared Ethernet NetworkBridge.
@@ -169,7 +169,7 @@ class BasePVMNeutronAgent(object):
         '''
         Invoked to indicate that a port has been updated within Neutron.
         '''
-        self.updated_ports.add(port)
+        self.updated_ports.append(port)
 
     def _list_updated_ports(self):
         '''
@@ -177,7 +177,7 @@ class BasePVMNeutronAgent(object):
         from the system.
         '''
         ports = copy.copy(self.updated_ports)
-        self.updated_ports = set()
+        self.updated_ports = []
         return ports
 
     def heal_and_optimize(self, is_boot):
