@@ -229,6 +229,20 @@ class UtilsTest(base.BasePVMTestCase):
         self.assertEqual({'default': '764f3423-04c5-3b96-95a3-4764065400bd'},
                          resp)
 
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.PVMUtils.'
+                '_parse_empty_bridge_mapping')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.PVMUtils.'
+                'list_bridges')
+    def test_parse_call_to_empty_bridge(self, mock_list_br, mock_empty):
+        nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
+        mock_list_br.return_value = nb_wraps
+
+        test_utils = self.__build_fake_utils(self.vios_feed_resp)
+        test_utils.parse_sea_mappings('')
+
+        # Make sure the _parse_empty_bridge_mapping method was called
+        self.assertEqual(1, mock_empty.call_count)
+
     def test_parse_empty_bridge_mappings(self):
         test_utils = self.__build_fake_utils(self.vios_feed_resp)
 

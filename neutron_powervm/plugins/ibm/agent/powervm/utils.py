@@ -84,7 +84,7 @@ class PVMUtils(object):
             raise np_exc.NoNetworkBridges()
         # Did the user specify the mapping?
         if mapping == '':
-            return self.parse_empty_bridge_mapping(nb_wraps)
+            return self._parse_empty_bridge_mapping(nb_wraps)
 
         # Need to find a list of all the VIOSes names to hrefs
         vio_feed = self.adapter.read(pvm_ms.System.schema_type,
