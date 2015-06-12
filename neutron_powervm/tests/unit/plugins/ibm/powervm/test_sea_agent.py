@@ -55,6 +55,11 @@ def FakeNB(uuid, pvid, tagged_vlans, addl_vlans):
     return m
 
 
+class FakeException(Exception):
+    """Used to indicate an error in an API the agent calls."""
+    pass
+
+
 class SEAAgentTest(base.BasePVMTestCase):
 
     def setUp(self):
@@ -120,23 +125,47 @@ class SEAAgentTest(base.BasePVMTestCase):
     @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'PVMUtils')
-    def test_provision_ports(self, mock_utils, mock_ensure):
+    def test_provision_devices(self, mock_utils, mock_ensure):
         """Validates that the provision is invoked with batched VLANs."""
         self.agent.api_utils = mock_utils
-
-        self.agent.plugin_rpc = mock.MagicMock()
-        self.agent.plugin_rpc.get_devices_details_list.return_value = [
-            FakeNPort('aa', 20, 'default'), FakeNPort('bb', 22, 'default')]
-
         self.agent.br_map = {'default': 'nb_uuid'}
+        self.agent.pvid_updater = mock.MagicMock()
 
         # Invoke
-        self.agent.provision_ports([FakeNPort('aa', 20, 'default'),
-                                    FakeNPort('bb', 22, 'default')])
+        self.agent.provision_devices([FakeNPort('aa', 20, 'default'),
+                                      FakeNPort('bb', 22, 'default')])
 
         # Validate that both VLANs are in one call
         mock_ensure.assert_called_once_with(mock.ANY, mock.ANY, 'nb_uuid',
                                             {20, 22})
+
+        # Validate that the PVID updates were completed
+        self.assertEqual(2, self.agent.pvid_updater.add.call_count)
+
+    @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'PVMUtils')
+    def test_provision_devices_fails(self, mock_utils, mock_ensure):
+        """Validates that behavior of a failed VLAN provision."""
+        self.agent.api_utils = mock_utils
+        self.agent.br_map = {'default': 'nb_uuid'}
+        self.agent.pvid_updater = mock.MagicMock()
+
+        # Have the ensure throw some exception
+        mock_ensure.side_effect = FakeException()
+
+        # Invoke
+        self.assertRaises(FakeException, self.agent.provision_devices,
+                          [FakeNPort('aa', 20, 'default'),
+                           FakeNPort('bb', 22, 'default')])
+
+        # Validate that both VLANs are in one call.  Should still occur even
+        # though no exception.
+        mock_ensure.assert_called_once_with(mock.ANY, mock.ANY, 'nb_uuid',
+                                            {20, 22})
+
+        # However, the pvid updater should not be invoked.
+        self.assertEqual(0, self.agent.pvid_updater.add.call_count)
 
     @mock.patch('pypowervm.tasks.network_bridger.remove_vlan_from_nb')
     @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
@@ -200,22 +229,23 @@ class PVIDLooperTest(base.BasePVMTestCase):
     def setUp(self):
         super(PVIDLooperTest, self).setUp()
 
-        self.mock_utils = mock.MagicMock()
-        self.looper = sea_agent.PVIDLooper(self.mock_utils)
+        self.mock_agent = mock.MagicMock()
+        self.looper = sea_agent.PVIDLooper(self.mock_agent)
 
     def test_add(self):
-        req = sea_agent.UpdateVLANRequest('a', 27)
+        req = sea_agent.UpdateVLANRequest(mock.MagicMock())
         self.assertEqual(0, len(self.looper.requests))
         self.looper.add(req)
         self.assertEqual(1, len(self.looper.requests))
 
     def test_update(self):
-        req = sea_agent.UpdateVLANRequest('a', 27)
+        req = sea_agent.UpdateVLANRequest(mock.MagicMock())
+        req.pvid = 27
         self.looper.add(req)
 
         # Mock the element returned
         mock_cna = mock.MagicMock()
-        self.mock_utils.find_cna_for_mac.return_value = mock_cna
+        self.mock_agent.api_utils.find_cna_for_mac.return_value = mock_cna
 
         # Call the update
         self.looper.update()
@@ -230,13 +260,17 @@ class PVIDLooperTest(base.BasePVMTestCase):
         mock_cna.update.assert_called_with()
         self.assertEqual(27, mock_cna.pvid)
 
+        # Make sure the port was updated
+        self.assertEqual(1, self.mock_agent.update_device_up.call_count)
+        self.assertEqual(0, self.mock_agent.update_device_down.call_count)
+
     def test_update_err(self):
         """Tests that the loop will error out after multiple loops."""
-        req = sea_agent.UpdateVLANRequest('a', 27)
+        req = sea_agent.UpdateVLANRequest(mock.MagicMock())
         self.looper.add(req)
 
         # Mock the element returned
-        self.mock_utils.find_cna_for_mac.return_value = None
+        self.mock_agent.api_utils.find_cna_for_mac.return_value = None
 
         for i in range(1, 11):
             # Call the update
@@ -245,3 +279,5 @@ class PVIDLooperTest(base.BasePVMTestCase):
             # Check to make sure the request was pulled off
             required_count = 1 if i < 10 else 0
             self.assertEqual(required_count, len(self.looper.requests))
+
+        self.assertEqual(1, self.mock_agent.update_device_down.call_count)

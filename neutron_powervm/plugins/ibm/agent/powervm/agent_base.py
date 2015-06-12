@@ -165,6 +165,16 @@ class BasePVMNeutronAgent(object):
         except Exception:
             LOG.exception(_("Failed reporting state!"))
 
+    def update_device_up(self, device):
+        """Calls back to neutron that a device is alive."""
+        self.plugin_rpc.update_device_up(self.context, device['device'],
+                                         self.agent_id, cfg.CONF.host)
+
+    def update_device_down(self, device):
+        """Calls back to neutron that a device is down."""
+        self.plugin_rpc.update_device_down(self.context, device['device'],
+                                           self.agent_id, cfg.CONF.host)
+
     def _update_port(self, port):
         '''
         Invoked to indicate that a port has been updated within Neutron.
@@ -192,27 +202,34 @@ class BasePVMNeutronAgent(object):
         """
         raise NotImplementedError()
 
-    def provision_ports(self, ports):
+    def provision_devices(self, devices):
         """Invoked when a set of new Neutron ports has been detected.
 
-        This method should provision the bridging for the new ports.  This
-        does not involve setting the client side adapters (that is done
-        via nova VIF plugging) but instead make sure that the adapter is
-        bridged out to the physical network.
+        This method should provision the bridging for the new devices
 
         Must be implemented by a subclass.
 
-        :param ports: The new ports that are to be provisioned.  Is a set
-                      of neutron ports.
+        The subclass implementation may be non-blocking.  This means, if it
+        will take a very long time to provision, or has a dependency on
+        another action (ex. client VIF needs to be created), then it should
+        run in a separate worker thread.
+
+        Because of the non-blocking nature of the method, it is required that
+        the child class updates the device state upon completion of the device
+        provisioning.  This can be done with the agent's
+        update_device_up/_down methods.
+
+        :param devices: The new devices that are to be provisioned.  Is a set
+                        of neutron devices (from the device_details).
         """
         raise NotImplementedError()
 
     def rpc_loop(self):
-        '''
+        """
         Runs a check periodically to determine if new ports were added or
         removed.  Will call down to appropriate methods to determine correct
         course of action.
-        '''
+        """
 
         loop_timer = float(0)
         loop_interval = float(ACONF.heal_and_optimize_interval)
@@ -239,7 +256,10 @@ class BasePVMNeutronAgent(object):
                     continue
 
                 # Provision the ports on the Network Bridge.
-                self.provision_ports(u_ports)
+                self.attempt_provision(u_ports)
+
+                # If the code reached this point, the successive exceptions
+                # can be reset to 0.
                 succesive_exceptions = 0
             except Exception as e:
                 # The agent should retry a few times, in case something
@@ -261,3 +281,28 @@ class BasePVMNeutronAgent(object):
                 else:
                     LOG.warn(_LW("Error has been encountered and logged.  The "
                              "agent will retry again."))
+
+    def attempt_provision(self, ports):
+        """Attempts the provisioning of the updated ports.
+
+        This method will attempt to provision a set of ports (by wrapping
+        around the provision_ports method).  If there are issues with
+        provisioning the ports, this method will update the status in the
+        backing Neutron server.
+
+        :param ports: The list of ports to provision.
+        """
+        # Convert the ports to devices.
+        dev_list = [x.get('mac_address') for x in ports]
+        devs = self.plugin_rpc.get_devices_details_list(self.context,
+                                                        dev_list,
+                                                        self.agent_id)
+        try:
+            self.provision_devices(devs)
+        except Exception:
+            # Set the state of the device as 'down'
+            for device in devs:
+                self.update_device_down(device)
+
+            # Reraise the exception
+            raise

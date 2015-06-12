@@ -57,9 +57,10 @@ ACONF = cfg.CONF.AGENT
 class UpdateVLANRequest(object):
     """Used for the async update of the PVIDs on ports."""
 
-    def __init__(self, mac_address, pvid):
-        self.mac_address = mac_address
-        self.pvid = pvid
+    def __init__(self, dev):
+        self.dev = dev
+        self.mac_address = dev.get('mac_address')
+        self.pvid = dev.get('segmentation_id')
         self.attempt_count = 0
 
 
@@ -74,13 +75,13 @@ class PVIDLooper(object):
     available, will update the CNA with the appropriate PVID.
     """
 
-    def __init__(self, api_utils):
+    def __init__(self, agent):
         """Initializes the looper.
 
-        :param api_utils: The API utilities
+        :param agent: The agent running the PVIDLooper
         """
         self.requests = []
-        self.api_utils = api_utils
+        self.agent = agent
 
     def update(self):
         """Performs a loop and updates all of the queued requests."""
@@ -92,17 +93,18 @@ class PVIDLooper(object):
 
         # Get all the Client Network Adapters once up front, as it can be
         # expensive.
-        client_adpts = self.api_utils.list_cnas()
+        client_adpts = self.agent.api_utils.list_cnas()
 
         # Loop through the current requests.  Try to update the PVIDs, but
         # if we are unable, then increment the attempt count.
         for request in current_requests:
-            cna = self.api_utils.find_cna_for_mac(request.mac_address,
-                                                  client_adpts)
+            cna = self.agent.api_utils.find_cna_for_mac(request.mac_address,
+                                                        client_adpts)
             if cna:
                 # Found the adapter!  Update it
                 cna.pvid = request.pvid
                 cna.update()
+                self.agent.update_device_up(request.dev)
                 self.requests.remove(request)
             else:
                 # Increment the request count.
@@ -113,10 +115,14 @@ class PVIDLooper(object):
                                   "network adapter found."),
                               {'pvid': request.pvid,
                                'mac': request.mac_address})
+                    self.agent.update_device_down(request.dev)
                     self.requests.remove(request)
 
     def add(self, request):
-        """Adds a new request to the looper utility."""
+        """Adds a new request to the looper utility.
+
+        :param request: A UpdateVLANRequest.
+        """
         self.requests.append(request)
 
 
@@ -137,7 +143,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
 
         # A looping utility that updates asynchronously the PVIDs on the
         # Client Network Adapters (CNAs)
-        self.pvid_updater = PVIDLooper(self.api_utils)
+        self.pvid_updater = PVIDLooper(self)
         pvid_l = loopingcall.FixedIntervalLoopingCall(self.pvid_updater.update)
         pvid_l.start(interval=2)
 
@@ -247,44 +253,42 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
                                            self.api_utils.host_id, nb.uuid,
                                            vlan_to_del)
 
-    def provision_ports(self, ports):
-        """Will ensure that the VLANs are on the NBs for the ports.
+    def provision_devices(self, devices):
+        """Will ensure that the VLANs are on the NBs for the edge devices.
 
-        Takes in a set of Neutron Ports.  From those ports, determines the
+        Takes in a set of Neutron Devices.  From those devices, determines the
         correct network bridges and their appropriate VLANs.  Then calls
         down to the pypowervm API to ensure that the required VLANs are
         on the appropriate ports.
 
-        :param ports: The new ports that are to be provisioned.  Is a set
-                      of neutron ports.
-        """
-        dev_list = [x.get('mac_address') for x in ports]
-        devs = self.plugin_rpc.get_devices_details_list(self.context,
-                                                        dev_list,
-                                                        self.agent_id)
+        Will also ensure that the client side adapter is updated with the
+        correct VLAN.
 
+        :param devices: The new devices that are to be provisioned.  Is a set
+                        of neutron devices (from the device_details).
+        """
         nb_to_vlan = {}
-        for dev in devs:
+        for dev in devices:
             # Break the ports into their respective lists broken down by
             # Network Bridge.
-            phys_net = dev.get('physical_network')
-            nb_uuid = self.br_map.get(phys_net)
+            nb_uuid = self.br_map.get(dev.get('physical_network'))
             if nb_to_vlan.get(nb_uuid) is None:
                 nb_to_vlan[nb_uuid] = set()
 
-            pvid = dev.get('segmentation_id')
-            nb_to_vlan[nb_uuid].add(pvid)
-
-            # Also need to update each client network adapter to have the
-            # correct PVID.
-            update_req = UpdateVLANRequest(dev.get('mac_address'), pvid)
-            self.pvid_updater.add(update_req)
+            nb_to_vlan[nb_uuid].add(dev.get('segmentation_id'))
 
         # For each bridge, make sure the VLANs are serviced.
         for nb_uuid in nb_to_vlan.keys():
             net_br.ensure_vlans_on_nb(self.api_utils.adapter,
                                       self.api_utils.host_id, nb_uuid,
                                       nb_to_vlan.get(nb_uuid))
+
+        # Now that the bridging is complete, loop through the devices again
+        # and kick off the PVID update on the client devices.  This should
+        # not be done until the vlan is on the network bridge.  Otherwise the
+        # port state in the backing neutron server could be out of sync.
+        for dev in devices:
+            self.pvid_updater.add(UpdateVLANRequest(dev))
 
 
 def main():
