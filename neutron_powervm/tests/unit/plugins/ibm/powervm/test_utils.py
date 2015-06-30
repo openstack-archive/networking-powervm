@@ -19,7 +19,6 @@ import mock
 from neutron_powervm.plugins.ibm.agent.powervm import utils
 
 from neutron_powervm.tests.unit.plugins.ibm.powervm import base
-from neutron_powervm.tests.unit.plugins.ibm.powervm import fixtures
 
 import os
 
@@ -46,13 +45,13 @@ class UtilsTest(base.BasePVMTestCase):
         data_dir = os.path.dirname(os.path.abspath(__file__))
         data_dir = os.path.join(data_dir, 'data')
 
-        adpt = self.useFixture(
+        self.adpt = self.useFixture(
             pvm_fx.AdapterFx(traits=pvm_fx.LocalPVMTraits)).adpt
 
         def resp(file_name):
             file_path = os.path.join(data_dir, file_name)
             return pvmhttp.load_pvm_resp(
-                file_path, adapter=adpt).get_response()
+                file_path, adapter=self.adpt).get_response()
 
         self.net_br_resp = resp(NET_BR_FILE)
         self.vm_feed_resp = resp(VM_FILE)
@@ -64,15 +63,13 @@ class UtilsTest(base.BasePVMTestCase):
         '''
         Helper method to make the mock adapter.
         '''
-        fake_adapter = self.useFixture(fixtures.PyPowerVM()).adpt
-
         # Sets the feed to be the response on the adapter for a single read
-        fake_adapter.read.return_value = feed
-        fake_adapter.read_by_href.return_value = feed
+        self.adpt.read.return_value = feed
+        self.adpt.read_by_href.return_value = feed
         with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                         'PVMUtils._get_host_uuid'):
             test_utils = utils.PVMUtils()
-        test_utils.adapter = fake_adapter
+        test_utils.adapter = self.adpt
         return test_utils
 
     def __cna(self, mac):
