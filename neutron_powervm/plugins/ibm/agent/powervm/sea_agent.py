@@ -20,11 +20,11 @@ eventlet.monkey_patch()
 
 from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_service import loopingcall
 
 from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
 from neutron.i18n import _LW, _LE, _LI
-from neutron.openstack.common import loopingcall
 from pypowervm.tasks import network_bridger as net_br
 
 from neutron_powervm.plugins.ibm.agent.powervm import agent_base

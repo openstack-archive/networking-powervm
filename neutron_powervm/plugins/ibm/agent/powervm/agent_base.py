@@ -21,6 +21,7 @@ eventlet.monkey_patch()
 
 from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_service import loopingcall
 
 from neutron.agent.common import config as a_config
 from neutron.agent import rpc as agent_rpc
@@ -28,7 +29,6 @@ from neutron.common import constants as q_const
 from neutron.common import topics
 from neutron import context as ctx
 from neutron.i18n import _, _LW, _LE
-from neutron.openstack.common import loopingcall
 
 from neutron_powervm.plugins.ibm.agent.powervm import utils
 

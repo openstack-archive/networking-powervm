@@ -202,8 +202,7 @@ class SEAAgentTest(base.BasePVMTestCase):
         self.assertEqual(3, mock_nbr_remove.call_count)
         self.assertEqual(2, mock_nbr_ensure.call_count)  # 1 per adapter
 
-    @mock.patch('neutron.openstack.common.loopingcall.'
-                'FixedIntervalLoopingCall')
+    @mock.patch('oslo_service.loopingcall.FixedIntervalLoopingCall')
     @mock.patch.object(ctx, 'get_admin_context_without_session',
                        return_value=mock.Mock())
     def test_setup_rpc(self, admin_ctxi, mock_loopingcall):
