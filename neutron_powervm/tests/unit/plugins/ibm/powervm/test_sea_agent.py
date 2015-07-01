@@ -188,10 +188,15 @@ class SEAAgentTest(base.BasePVMTestCase):
 
         self.agent.br_map = {'default': 'nb_uuid'}
 
+        # State that there is a pending VLAN (47) that has yet to be applied
+        self.agent.pvid_updater = mock.MagicMock()
+        self.agent.pvid_updater.pending_vlans = {47}
+
         # Mock up network bridges.  VLANs 44, 45, and 46 should be deleted
-        # as they are not required by anything.
+        # as they are not required by anything.  VLAN 47 should be needed
+        # as it is in the pending list.
         mock_nb1 = FakeNB('nb_uuid', 20, [], [])
-        mock_nb2 = FakeNB('nb2_uuid', 40, [41, 42, 43], [44, 45, 46])
+        mock_nb2 = FakeNB('nb2_uuid', 40, [41, 42, 43], [44, 45, 46, 47])
         mock_utils.list_bridges.return_value = [mock_nb1, mock_nb2]
         mock_utils.find_nb_for_cna.return_value = mock_nb2
 
@@ -271,12 +276,14 @@ class PVIDLooperTest(base.BasePVMTestCase):
         # Mock the element returned
         self.mock_agent.api_utils.find_cna_for_mac.return_value = None
 
-        for i in range(1, 11):
+        loop_count = cfg.CONF.AGENT.pvid_update_timeout
+
+        for i in range(1, loop_count + 1):
             # Call the update
             self.looper.update()
 
             # Check to make sure the request was pulled off
-            required_count = 1 if i < 10 else 0
+            required_count = 1 if i < loop_count else 0
             self.assertEqual(required_count, len(self.looper.requests))
 
         self.assertEqual(1, self.mock_agent.update_device_down.call_count)

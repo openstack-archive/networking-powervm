@@ -43,7 +43,15 @@ agent_opts = [
                     'describes how the neutron physical networks map to the '
                     'Shared Ethernet Adapters.'
                     'Format: <ph_net1>:<sea1>:<vio1>,<ph_net2>:<sea2>:<vio2> '
-                    'Example: default:ent5:vios_1,speedy:ent6:vios_1')
+                    'Example: default:ent5:vios_1,speedy:ent6:vios_1'),
+    cfg.IntOpt('pvid_update_timeout', default=300,
+               help='The Port VLAN ID (PVID) of the Client VM\'s Network '
+                    'Interface is updated by this agent.  There is a delay '
+                    'from Nova between when the Neutron Port is assigned '
+                    'to the host, and when the client VIF is created.  This '
+                    'timeout indicates how long the agent should wait until '
+                    'it determines that the port has failed to create from '
+                    'Nova.  The time is in seconds.')
 ]
 
 
@@ -109,7 +117,7 @@ class PVIDLooper(object):
             else:
                 # Increment the request count.
                 request.attempt_count += 1
-                if request.attempt_count >= 10:
+                if request.attempt_count >= ACONF.pvid_update_timeout:
                     LOG.error(_LE("Unable to update PVID to %(pvid)s for "
                                   "MAC Address %(mac)s as there was no valid "
                                   "network adapter found."),
@@ -124,6 +132,14 @@ class PVIDLooper(object):
         :param request: A UpdateVLANRequest.
         """
         self.requests.append(request)
+
+    @property
+    def pending_vlans(self):
+        """Returns the set of pending VLAN updates.
+
+        :return: Set of unique VLAN ids from within the pending requests.
+        """
+        return {x.pvid for x in self.requests}
 
 
 class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
@@ -145,7 +161,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         # Client Network Adapters (CNAs)
         self.pvid_updater = PVIDLooper(self)
         pvid_l = loopingcall.FixedIntervalLoopingCall(self.pvid_updater.update)
-        pvid_l.start(interval=2)
+        pvid_l.start(interval=1)
 
     def heal_and_optimize(self, is_boot):
         """Heals the system's network bridges and optimizes.
@@ -228,6 +244,11 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
             for addl_vlan in client_adpt.tagged_vlans:
                 nb_req_vlans[nb.uuid].add(addl_vlan)
 
+        # We will have a list of CNAs that are not yet created, but are pending
+        # provisioning from Nova.  Keep track of those so that we don't tear
+        # those off the SEA.
+        pending_vlans = self.pvid_updater.pending_vlans
+
         # The list of required VLANs on each network bridge also includes
         # everything on the primary VEA.
         for nb in nb_wraps:
@@ -237,13 +258,17 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
             for vlan in vlans:
                 nb_req_vlans[nb.uuid].add(vlan)
 
-        # At this point, all of the required vlans are captured in the
-        # nb_req_vlans list.  We now subtract the VLANs on the Network Bridge
-        # from the ones we identified as required.  That list are the
-        # vlans to remove.
+        # Loop through and remove VLANs that are no longer needed.
         for nb in nb_wraps:
-            req_vlans = nb_req_vlans[nb.uuid]
+            # Join the required vlans on the network bridge (already in use)
+            # with the pending VLANs.
+            req_vlans = nb_req_vlans[nb.uuid] | pending_vlans
+
+            # Get ALL the VLANs on the bridge
             existing_vlans = set(nb.list_vlans())
+
+            # To determine the ones no longer needed, subtract from all the
+            # VLANs the ones that are no longer needed.
             vlans_to_del = existing_vlans - req_vlans
             for vlan_to_del in vlans_to_del:
                 LOG.warn(_LW("Cleaning up VLAN %(vlan)s from the system.  "
