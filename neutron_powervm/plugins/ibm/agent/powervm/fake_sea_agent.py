@@ -92,7 +92,7 @@ class FakeSharedEthernetRpcCallbacks(object):
         LOG.debug("network_delete RPC received for network: %s", network_id)
 
 
-class FakeSharedEthernetNeutronAgent():
+class FakeSharedEthernetNeutronAgent(object):
     '''
     This agent provides a simulation baseline that mirrors the baseline
     Shared Ethernet Neutron Agent, but can run independently.  The intent is

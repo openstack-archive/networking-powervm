@@ -76,7 +76,7 @@ class UtilsTest(base.BasePVMTestCase):
     def __cna(self, mac):
         '''Create a Client Network Adapter mock.'''
 
-        class FakeCNA():
+        class FakeCNA(object):
 
             @property
             def slot(self):
