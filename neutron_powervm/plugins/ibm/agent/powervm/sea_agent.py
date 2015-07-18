@@ -109,9 +109,9 @@ class PVIDLooper(object):
             cna = self.agent.api_utils.find_cna_for_mac(request.mac_address,
                                                         client_adpts)
             if cna:
-                # Found the adapter!  Update it
-                cna.pvid = request.pvid
-                cna.update()
+                # Found the adapter!  Update the PVID and inform Neutron of the
+                # device now being fully online.
+                self.agent.api_utils.update_cna_pvid(cna, request.pvid)
                 self.agent.update_device_up(request.dev)
                 self.requests.remove(request)
             else:

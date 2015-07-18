@@ -287,3 +287,27 @@ class PVMUtils(object):
             LOG.warn(_LW('No NetworkBridges detected on the host.'))
 
         return net_bridges
+
+    def update_cna_pvid(self, cna, pvid):
+        """This method will update the CNA with a new PVID.
+
+        Will handle the retry logic surrounding this.  As the CNA may have
+        come from old data.
+        :param cna: The CNA wrapper (client network adapter).
+        :param pvid: The new pvid to put on the wrapper.
+        """
+
+        def _cna_argmod(this_try, max_tries, *args, **kwargs):
+            # Refresh the CNA to get a new etag
+            LOG.debug("Attempting to re-query a CNA to get latest etag.")
+            cna = args[0]
+            cna.refresh()
+            return args, kwargs
+
+        @pvm_retry.retry(argmod_func=_cna_argmod)
+        def _func(cna, pvid):
+            cna.pvid = pvid
+            cna.update()
+
+        # Run the function (w/ retry) to update the PVID
+        _func(cna, pvid)

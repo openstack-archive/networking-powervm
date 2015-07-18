@@ -23,6 +23,8 @@ from neutron_powervm.tests.unit.plugins.ibm.powervm import base
 
 import os
 
+from pypowervm import const as pvm_const
+from pypowervm import exceptions as pvm_exc
 from pypowervm.tests import test_fixtures as pvm_fx
 from pypowervm.tests.wrappers.util import pvmhttp
 from pypowervm.wrappers import network as pvm_net
@@ -253,3 +255,50 @@ class UtilsTest(base.BasePVMTestCase):
         self.assertRaises(np_exc.MultiBridgeNoMapping,
                           test_utils._parse_empty_bridge_mapping,
                           [proper_wrap, mock.Mock()])
+
+    def test_update_cna_pvid(self):
+        """Validates the update_cna_pvid method."""
+        def build_mock():
+            # Need to rebuild.  Since it returns itself a standard reset will
+            # recurse infinitely.
+            cna = mock.MagicMock()
+            cna.refresh.return_value = cna
+            return cna
+
+        test_utils = self.__build_fake_utils(self.vios_feed_resp)
+
+        # Attempt happy path
+        cna = build_mock()
+        test_utils.update_cna_pvid(cna, 5)
+        self.assertEqual(5, cna.pvid)
+        self.assertEqual(1, cna.update.call_count)
+
+        # Raise an error 3 times and make sure it eventually re-raises the root
+        # etag exception
+        cna = build_mock()
+        err_resp = mock.MagicMock()
+        err_resp.status = pvm_const.HTTPStatus.ETAG_MISMATCH
+        error = pvm_exc.HttpError('msg', err_resp)
+
+        cna.update.side_effect = [error, error, error]
+        self.assertRaises(pvm_exc.HttpError, test_utils.update_cna_pvid,
+                          cna, 5)
+        self.assertEqual(3, cna.update.call_count)
+        self.assertEqual(2, cna.refresh.call_count)
+
+        # Raise an error 2 times and then eventually works
+        cna = build_mock()
+        cna.update.side_effect = [error, error, None]
+        test_utils.update_cna_pvid(cna, 5)
+        self.assertEqual(3, cna.update.call_count)
+        self.assertEqual(2, cna.refresh.call_count)
+
+        # Immediate re-raise of different type of exception
+        cna = build_mock()
+        err_resp.status = pvm_const.HTTPStatus.UNAUTHORIZED
+        cna.update.side_effect = pvm_exc.HttpError('msg', err_resp)
+
+        self.assertRaises(pvm_exc.HttpError, test_utils.update_cna_pvid,
+                          cna, 5)
+        self.assertEqual(1, cna.update.call_count)
+        self.assertEqual(0, cna.refresh.call_count)

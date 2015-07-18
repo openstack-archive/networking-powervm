@@ -258,11 +258,8 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.assertEqual(0, len(self.looper.requests))
 
         # Make sure the mock CNA had update called, and the vid set correctly
-        self.assertEqual(1, mock_cna.update.call_count)
-
-        # Make sure no parms in the update
-        mock_cna.update.assert_called_with()
-        self.assertEqual(27, mock_cna.pvid)
+        self.mock_agent.api_utils.update_cna_pvid.assert_called_with(mock_cna,
+                                                                     27)
 
         # Make sure the port was updated
         self.assertEqual(1, self.mock_agent.update_device_up.call_count)
