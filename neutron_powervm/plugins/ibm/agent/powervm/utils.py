@@ -19,6 +19,8 @@ from oslo_log import log as logging
 from neutron.i18n import _LW
 
 from pypowervm import adapter
+from pypowervm.helpers import log_helper as log_hlp
+from pypowervm.helpers import vios_busy as vio_hlp
 from pypowervm import util as pvm_util
 from pypowervm.utils import retry as pvm_retry
 from pypowervm.wrappers import logical_partition as pvm_lpar
@@ -45,7 +47,9 @@ class PVMUtils(object):
         '''
         Initializes the utility class.
         '''
-        self.adapter = adapter.Adapter(adapter.Session())
+        self.adapter = adapter.Adapter(
+            adapter.Session(), helpers=[log_hlp.log_helper,
+                                        vio_hlp.vios_busy_retry_helper])
         self.host_id = self._get_host_uuid()
 
     def _get_host_uuid(self):
