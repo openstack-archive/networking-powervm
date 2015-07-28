@@ -112,6 +112,7 @@ class PVIDLooper(object):
                 # Found the adapter!  Update the PVID and inform Neutron of the
                 # device now being fully online.
                 self.agent.api_utils.update_cna_pvid(cna, request.pvid)
+                LOG.debug("Sending update device for %s" % request.mac_address)
                 self.agent.update_device_up(request.dev)
                 self.requests.remove(request)
             else:
@@ -314,6 +315,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         # port state in the backing neutron server could be out of sync.
         for dev in devices:
             self.pvid_updater.add(UpdateVLANRequest(dev))
+        LOG.debug('Successfully provisioned new devices.')
 
 
 def main():

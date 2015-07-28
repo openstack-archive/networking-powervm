@@ -24,6 +24,11 @@ class FakeExc(Exception):
     pass
 
 
+def FakeNPort(mac, segment_id, phys_network):
+    return {'mac_address': mac, 'segmentation_id': segment_id,
+            'physical_network': phys_network}
+
+
 class TestAgentBase(base.BasePVMTestCase):
 
     def setUp(self):
@@ -73,8 +78,9 @@ class TestAgentBase(base.BasePVMTestCase):
         agent.plugin_rpc.get_devices_details_list.return_value = devs
 
         # Invoke the test method.
-        agent.attempt_provision([mock.MagicMock(), mock.MagicMock(),
-                                 mock.MagicMock()])
+        agent.attempt_provision([FakeNPort('a', 1, 'default'),
+                                 FakeNPort('b', 1, 'default'),
+                                 FakeNPort('c', 1, 'default')])
 
         # Validate the provision was invoked.
         mock_provision.assert_called_with(devs)
@@ -96,8 +102,9 @@ class TestAgentBase(base.BasePVMTestCase):
 
         # Invoke the test method.
         self.assertRaises(FakeExc, agent.attempt_provision,
-                          [mock.MagicMock(), mock.MagicMock(),
-                           mock.MagicMock()])
+                          [FakeNPort('a', 1, 'default'),
+                           FakeNPort('b', 1, 'default'),
+                           FakeNPort('c', 1, 'default')])
 
         # Validate the provision was invoked.
         mock_provision.assert_called_with(devs)

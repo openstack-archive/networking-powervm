@@ -92,8 +92,6 @@ class PVMRpcCallbacks(object):
 
     def network_delete(self, context, **kwargs):
         network_id = kwargs.get('network_id')
-
-        # TODO(thorst) Need to perform the call back
         LOG.debug("network_delete RPC received for network: %s", network_id)
 
 
@@ -298,6 +296,8 @@ class BasePVMNeutronAgent(object):
                                                         dev_list,
                                                         self.agent_id)
         try:
+            LOG.debug("Provisioning ports for mac addresses [ %s ]" %
+                      ' '.join(dev_list))
             self.provision_devices(devs)
         except Exception:
             # Set the state of the device as 'down'
