@@ -29,6 +29,7 @@ from pypowervm.tasks import network_bridger as net_br
 
 from neutron_powervm.plugins.ibm.agent.powervm import agent_base
 from neutron_powervm.plugins.ibm.agent.powervm import constants as p_const
+from neutron_powervm.plugins.ibm.agent.powervm import utils
 
 import sys
 
@@ -90,6 +91,8 @@ class PVIDLooper(object):
         """
         self.requests = []
         self.agent = agent
+        self.adapter = agent.adapter
+        self.host_uuid = agent.host_uuid
 
     def update(self):
         """Performs a loop and updates all of the queued requests."""
@@ -101,17 +104,16 @@ class PVIDLooper(object):
 
         # Get all the Client Network Adapters once up front, as it can be
         # expensive.
-        client_adpts = self.agent.api_utils.list_cnas()
+        client_adpts = utils.list_cnas(self.adapter, self.host_uuid)
 
         # Loop through the current requests.  Try to update the PVIDs, but
         # if we are unable, then increment the attempt count.
         for request in current_requests:
-            cna = self.agent.api_utils.find_cna_for_mac(request.mac_address,
-                                                        client_adpts)
+            cna = utils.find_cna_for_mac(request.mac_address, client_adpts)
             if cna:
                 # Found the adapter!  Update the PVID and inform Neutron of the
                 # device now being fully online.
-                self.agent.api_utils.update_cna_pvid(cna, request.pvid)
+                utils.update_cna_pvid(cna, request.pvid)
                 LOG.debug("Sending update device for %s" % request.mac_address)
                 self.agent.update_device_up(request.dev)
                 self.requests.remove(request)
@@ -144,11 +146,11 @@ class PVIDLooper(object):
 
 
 class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
-    '''
+    """
     Provides VLAN networks for the PowerVM platform that run accross the
     Shared Ethernet within the Virtual I/O Servers.  Designed to be compatible
     with the ML2 Neutron Plugin.
-    '''
+    """
 
     def __init__(self):
         """Constructs the agent."""
@@ -156,7 +158,8 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         agent_type = p_const.AGENT_TYPE_PVM_SEA
         super(SharedEthernetNeutronAgent, self).__init__(name, agent_type)
 
-        self.br_map = self.api_utils.parse_sea_mappings(ACONF.bridge_mappings)
+        self.br_map = utils.parse_sea_mappings(self.adapter, self.host_uuid,
+                                               ACONF.bridge_mappings)
 
         # A looping utility that updates asynchronously the PVIDs on the
         # Client Network Adapters (CNAs)
@@ -183,19 +186,19 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         """
 
         # List all our clients
-        client_adpts = self.api_utils.list_cnas()
+        client_adpts = utils.list_cnas(self.adapter, self.host_uuid)
 
         # Get all the devices that Neutron knows for this host.  Note that
         # we pass in all of the macs on the system.  For VMs that neutron does
         # not know about, we get back an empty structure with just the mac.
-        client_macs = [self.api_utils.norm_mac(x.mac) for x in client_adpts]
+        client_macs = [utils.norm_mac(x.mac) for x in client_adpts]
         devs = self.plugin_rpc.get_devices_details_list(self.context,
                                                         client_macs,
                                                         self.agent_id)
 
         # Dictionary of the required VLANs on the Network Bridge
         nb_req_vlans = {}
-        nb_wraps = self.api_utils.list_bridges()
+        nb_wraps = utils.list_bridges(self.adapter, self.host_uuid)
         for nb_wrap in nb_wraps:
             nb_req_vlans[nb_wrap.uuid] = set()
 
@@ -214,8 +217,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         # Lets ensure that all VLANs for the openstack VMs are on the network
         # bridges.
         for nb_uuid in nb_req_vlans.keys():
-            net_br.ensure_vlans_on_nb(self.api_utils.adapter,
-                                      self.api_utils.host_id, nb_uuid,
+            net_br.ensure_vlans_on_nb(self.adapter, self.host_uuid, nb_uuid,
                                       nb_req_vlans[nb_uuid])
 
         # We should clean up old VLANs as well.  However, we only want to clean
@@ -227,10 +229,9 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         # We first extend that map by listing all the VMs on the system
         # (whether managed by OpenStack or not) and then seeing what Network
         # Bridge uses them.
-        vswitch_map = self.api_utils.get_vswitch_map()
+        vswitch_map = utils.get_vswitch_map(self.adapter, self.host_uuid)
         for client_adpt in client_adpts:
-            nb = self.api_utils.find_nb_for_cna(nb_wraps, client_adpt,
-                                                vswitch_map)
+            nb = utils.find_nb_for_cna(nb_wraps, client_adpt, vswitch_map)
             # Could occur if a system is internal only.
             if nb is None:
                 LOG.debug("Client Adapter with mac %s is internal only.",
@@ -275,9 +276,8 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
                 LOG.warn(_LW("Cleaning up VLAN %(vlan)s from the system.  "
                              "It is no longer in use."),
                          {'vlan': vlan_to_del})
-                net_br.remove_vlan_from_nb(self.api_utils.adapter,
-                                           self.api_utils.host_id, nb.uuid,
-                                           vlan_to_del)
+                net_br.remove_vlan_from_nb(self.adapter, self.host_uuid,
+                                           nb.uuid, vlan_to_del)
 
     def provision_devices(self, devices):
         """Will ensure that the VLANs are on the NBs for the edge devices.
@@ -305,8 +305,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
 
         # For each bridge, make sure the VLANs are serviced.
         for nb_uuid in nb_to_vlan.keys():
-            net_br.ensure_vlans_on_nb(self.api_utils.adapter,
-                                      self.api_utils.host_id, nb_uuid,
+            net_br.ensure_vlans_on_nb(self.adapter, self.host_uuid, nb_uuid,
                                       nb_to_vlan.get(nb_uuid))
 
         # Now that the bridging is complete, loop through the devices again

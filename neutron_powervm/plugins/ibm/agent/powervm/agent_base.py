@@ -29,6 +29,9 @@ from neutron.common import constants as q_const
 from neutron.common import topics
 from neutron import context as ctx
 from neutron.i18n import _, _LW, _LE
+from pypowervm import adapter as pvm_adpt
+from pypowervm.helpers import log_helper as log_hlp
+from pypowervm.helpers import vios_busy as vio_hlp
 
 from neutron_powervm.plugins.ibm.agent.powervm import utils
 
@@ -61,11 +64,11 @@ class PVMPluginApi(agent_rpc.PluginApi):
 
 
 class PVMRpcCallbacks(object):
-    '''
+    """
     Provides call backs (as defined in the setup_rpc method within the
     appropriate Neutron Agent class) that will be invoked upon certain
     actions from the controller.
-    '''
+    """
 
     # This agent supports RPC Version 1.0.  Though agents don't boot unless
     # 1.1 or higher is specified now.
@@ -76,12 +79,12 @@ class PVMRpcCallbacks(object):
     RPC_API_VERSION = '1.1'
 
     def __init__(self, agent):
-        '''
+        """
         Creates the call back.  Most of the call back methods will be
         delegated to the agent.
 
         :param agent: The owning agent to delegate the callbacks to.
-        '''
+        """
         super(PVMRpcCallbacks, self).__init__()
         self.agent = agent
 
@@ -111,12 +114,19 @@ class BasePVMNeutronAgent(object):
                             'start_flag': True}
         self.setup_rpc()
 
+        # Create the utility class that enables work against the Hypervisors
+        # Shared Ethernet NetworkBridge.
+        self.setup_adapter()
+
         # A list of ports that maintains the list of current 'modified' ports
         self.updated_ports = []
 
-        # Create the utility class that enables work against the Hypervisors
-        # Shared Ethernet NetworkBridge.
-        self.api_utils = utils.PVMUtils()
+    def setup_adapter(self):
+        """Configures the pypowervm adapter and utilities."""
+        self.adapter = pvm_adpt.Adapter(
+            pvm_adpt.Session(), helpers=[log_hlp.log_helper,
+                                         vio_hlp.vios_busy_retry_helper])
+        self.host_uuid = utils.get_host_uuid(self.adapter)
 
     def setup_rpc(self):
         """Registers the RPC consumers for the plugin."""
@@ -147,12 +157,12 @@ class BasePVMNeutronAgent(object):
             hb.start(interval=report_interval)
 
     def _report_state(self):
-        '''
+        """
         Reports the state of the agent back to the controller.  Controller
         knows that if a response isn't provided in a certain period of time
         then the agent is dead.  This call simply tells the controller that
         the agent is alive.
-        '''
+        """
         # TODO(thorst) provide some level of devices connected to this agent.
         try:
             device_count = 0
@@ -174,16 +184,14 @@ class BasePVMNeutronAgent(object):
                                            self.agent_id, cfg.CONF.host)
 
     def _update_port(self, port):
-        '''
-        Invoked to indicate that a port has been updated within Neutron.
-        '''
+        """Invoked to indicate that a port has been updated within Neutron."""
         self.updated_ports.append(port)
 
     def _list_updated_ports(self):
-        '''
+        """
         Will return (and then reset) the list of updated ports received
         from the system.
-        '''
+        """
         ports = copy.copy(self.updated_ports)
         self.updated_ports = []
         return ports

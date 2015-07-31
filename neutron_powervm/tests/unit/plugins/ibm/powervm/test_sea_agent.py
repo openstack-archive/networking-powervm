@@ -20,6 +20,7 @@ import mock
 
 from neutron_powervm.plugins.ibm.agent.powervm import sea_agent
 from neutron_powervm.tests.unit.plugins.ibm.powervm import base
+from pypowervm.tests import test_fixtures as pvm_fx
 
 from neutron.common import constants as q_const
 from neutron import context as ctx
@@ -65,16 +66,23 @@ class SEAAgentTest(base.BasePVMTestCase):
     def setUp(self):
         super(SEAAgentTest, self).setUp()
 
+        self.adpt = self.useFixture(
+            pvm_fx.AdapterFx(traits=pvm_fx.LocalPVMTraits)).adpt
+
         with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
-                        'PVMUtils'):
+                        'get_host_uuid'),\
+                mock.patch('neutron_powervm.plugins.ibm.agent.'
+                           'powervm.utils.parse_sea_mappings'):
             self.agent = sea_agent.SharedEthernetNeutronAgent()
+            self.agent.adapter = self.adpt
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
-                'PVMUtils')
-    def test_init(self, fake_utils):
-        '''
-        Verifies the integrity of the agent after being initialized.
-        '''
+                'parse_sea_mappings')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'get_host_uuid')
+    def test_init(self, mock_get_host_uuid, mock_parse_mapping):
+        """Verifies the integrity of the agent after being initialized."""
+        mock_get_host_uuid.return_value = 'host_uuid'
         temp_agent = sea_agent.SharedEthernetNeutronAgent()
         self.assertEqual('neutron-powervm-sharedethernet-agent',
                          temp_agent.agent_state.get('binary'))
@@ -85,10 +93,10 @@ class SEAAgentTest(base.BasePVMTestCase):
                          temp_agent.agent_state.get('agent_type'))
 
     def test_updated_ports(self):
-        '''
+        """
         Validates that the updated ports list can be added to and reset
         properly as needed.
-        '''
+        """
         self.assertEqual(0, len(self.agent._list_updated_ports()))
 
         self.agent._update_port(1)
@@ -100,9 +108,7 @@ class SEAAgentTest(base.BasePVMTestCase):
         self.assertEqual(0, len(self.agent._list_updated_ports()))
 
     def test_report_state(self):
-        '''
-        Validates that the report state functions properly.
-        '''
+        """"Validates that the report state functions properly."""
         # Make sure we had a start flag before the first report
         self.assertIsNotNone(self.agent.agent_state.get('start_flag'))
 
@@ -123,8 +129,7 @@ class SEAAgentTest(base.BasePVMTestCase):
         self.assertIsNone(self.agent.agent_state.get('start_flag'))
 
     @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
-                'PVMUtils')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils')
     def test_provision_devices(self, mock_utils, mock_ensure):
         """Validates that the provision is invoked with batched VLANs."""
         self.agent.api_utils = mock_utils
@@ -143,8 +148,7 @@ class SEAAgentTest(base.BasePVMTestCase):
         self.assertEqual(2, self.agent.pvid_updater.add.call_count)
 
     @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
-                'PVMUtils')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils')
     def test_provision_devices_fails(self, mock_utils, mock_ensure):
         """Validates that behavior of a failed VLAN provision."""
         self.agent.api_utils = mock_utils
@@ -170,16 +174,19 @@ class SEAAgentTest(base.BasePVMTestCase):
     @mock.patch('pypowervm.tasks.network_bridger.remove_vlan_from_nb')
     @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
-                'PVMUtils')
-    def test_heal_and_optimize(self, mock_utils, mock_nbr_ensure,
+                'get_vswitch_map')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.list_cnas')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.list_bridges')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'find_nb_for_cna')
+    def test_heal_and_optimize(self, mock_find_nb_for_cna, mock_list_bridges,
+                               mock_list_cnas, mock_vs_map, mock_nbr_ensure,
                                mock_nbr_remove):
         """Validates the heal and optimization code."""
-        self.agent.api_utils = mock_utils
-
         # Fake adapters already on system.
         adpts = [FakeClientAdpt('00', 30, []),
                  FakeClientAdpt('11', 31, [32, 33, 34])]
-        mock_utils.list_cnas.return_value = adpts
+        mock_list_cnas.return_value = adpts
 
         # The neutron data.  These will be 'ensured' on the bridge.
         self.agent.plugin_rpc = mock.MagicMock()
@@ -197,8 +204,8 @@ class SEAAgentTest(base.BasePVMTestCase):
         # as it is in the pending list.
         mock_nb1 = FakeNB('nb_uuid', 20, [], [])
         mock_nb2 = FakeNB('nb2_uuid', 40, [41, 42, 43], [44, 45, 46, 47])
-        mock_utils.list_bridges.return_value = [mock_nb1, mock_nb2]
-        mock_utils.find_nb_for_cna.return_value = mock_nb2
+        mock_list_bridges.return_value = [mock_nb1, mock_nb2]
+        mock_find_nb_for_cna.return_value = mock_nb2
 
         # Invoke
         self.agent.heal_and_optimize(False)
@@ -211,9 +218,7 @@ class SEAAgentTest(base.BasePVMTestCase):
     @mock.patch.object(ctx, 'get_admin_context_without_session',
                        return_value=mock.Mock())
     def test_setup_rpc(self, admin_ctxi, mock_loopingcall):
-        '''
-        Validates that the setup_rpc method is properly invoked
-        '''
+        """Validates that the setup_rpc method is properly invoked."""
         cfg.CONF.AGENT = mock.Mock()
         cfg.CONF.AGENT.report_interval = 5
 
@@ -242,14 +247,18 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.looper.add(req)
         self.assertEqual(1, len(self.looper.requests))
 
-    def test_update(self):
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'update_cna_pvid')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'find_cna_for_mac')
+    def test_update(self, mock_find_cna_for_mac, mock_update_cna_pvid):
         req = sea_agent.UpdateVLANRequest(mock.MagicMock())
         req.pvid = 27
         self.looper.add(req)
 
         # Mock the element returned
         mock_cna = mock.MagicMock()
-        self.mock_agent.api_utils.find_cna_for_mac.return_value = mock_cna
+        mock_find_cna_for_mac.return_value = mock_cna
 
         # Call the update
         self.looper.update()
@@ -258,20 +267,21 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.assertEqual(0, len(self.looper.requests))
 
         # Make sure the mock CNA had update called, and the vid set correctly
-        self.mock_agent.api_utils.update_cna_pvid.assert_called_with(mock_cna,
-                                                                     27)
+        mock_update_cna_pvid.assert_called_with(mock_cna, 27)
 
         # Make sure the port was updated
         self.assertEqual(1, self.mock_agent.update_device_up.call_count)
         self.assertEqual(0, self.mock_agent.update_device_down.call_count)
 
-    def test_update_err(self):
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'find_cna_for_mac')
+    def test_update_err(self, mock_find_cna_for_mac):
         """Tests that the loop will error out after multiple loops."""
         req = sea_agent.UpdateVLANRequest(mock.MagicMock())
         self.looper.add(req)
 
         # Mock the element returned
-        self.mock_agent.api_utils.find_cna_for_mac.return_value = None
+        mock_find_cna_for_mac.return_value = None
 
         loop_count = cfg.CONF.AGENT.pvid_update_timeout
 

@@ -21,9 +21,7 @@ import shutil
 
 
 class BasePVMTestCase(base.BaseTestCase):
-    '''
-    The base PowerVM Test case.
-    '''
+    """The base PowerVM Test case."""
 
     def setUp(self):
         super(BasePVMTestCase, self).setUp()
@@ -44,10 +42,10 @@ class BasePVMTestCase(base.BaseTestCase):
             os.remove(to)
 
     def _get_policy_paths(self):
-        '''
+        """
         Returns the source policy path from neutron and a target path
         to store the file in temporarily for the tests.
-        '''
+        """
         # Start with the source path.
         tests = os.path.split(base.__file__)[0]
         neutron_src = os.path.split(tests)[0]

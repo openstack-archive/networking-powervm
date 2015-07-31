@@ -37,9 +37,7 @@ VIOS_FILE = 'fake_vios_feed.txt'
 
 
 class UtilsTest(base.BasePVMTestCase):
-    '''
-    Tests the utility functions for the Shared Ethernet Adapter Logic.
-    '''
+    """Tests the utility functions for the Shared Ethernet Adapter Logic."""
 
     def setUp(self):
         super(UtilsTest, self).setUp()
@@ -62,21 +60,14 @@ class UtilsTest(base.BasePVMTestCase):
         self.vswitch_resp = resp(VSW_FILE)
         self.vios_feed_resp = resp(VIOS_FILE)
 
-    def __build_fake_utils(self, feed):
-        '''
-        Helper method to make the mock adapter.
-        '''
+    def _mock_feed(self, feed):
+        """Helper method to make the mock adapter."""
         # Sets the feed to be the response on the adapter for a single read
         self.adpt.read.return_value = feed
         self.adpt.read_by_href.return_value = feed
-        with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
-                        'PVMUtils._get_host_uuid'):
-            test_utils = utils.PVMUtils()
-        test_utils.adapter = self.adpt
-        return test_utils
 
     def __cna(self, mac):
-        '''Create a Client Network Adapter mock.'''
+        """Create a Client Network Adapter mock."""
 
         class FakeCNA(object):
 
@@ -95,58 +86,50 @@ class UtilsTest(base.BasePVMTestCase):
         return FakeCNA()
 
     def test_find_cna_for_mac(self):
-        ut = self.__build_fake_utils(None)
-
         cna1 = self.__cna("1234567890AB")
         cna2 = self.__cna("123456789012")
 
-        self.assertEqual(cna1, ut.find_cna_for_mac("1234567890AB",
-                                                   [cna1, cna2]))
-        self.assertEqual(None, ut.find_cna_for_mac("9876543210AB",
-                                                   [cna1, cna2]))
+        self.assertEqual(cna1, utils.find_cna_for_mac("1234567890AB",
+                                                      [cna1, cna2]))
+        self.assertEqual(None, utils.find_cna_for_mac("9876543210AB",
+                                                      [cna1, cna2]))
 
     def test_norm_mac(self):
-        ut = self.__build_fake_utils(None)
-
         EXPECTED = "12:34:56:78:90:ab"
-        self.assertEqual(EXPECTED, ut.norm_mac("12:34:56:78:90:ab"))
-        self.assertEqual(EXPECTED, ut.norm_mac("1234567890ab"))
-        self.assertEqual(EXPECTED, ut.norm_mac("12:34:56:78:90:AB"))
-        self.assertEqual(EXPECTED, ut.norm_mac("1234567890AB"))
+        self.assertEqual(EXPECTED, utils.norm_mac("12:34:56:78:90:ab"))
+        self.assertEqual(EXPECTED, utils.norm_mac("1234567890ab"))
+        self.assertEqual(EXPECTED, utils.norm_mac("12:34:56:78:90:AB"))
+        self.assertEqual(EXPECTED, utils.norm_mac("1234567890AB"))
 
     def test_list_bridges(self):
-        '''
-        Test that we can load the bridges in properly.
-        '''
-        test_utils = self.__build_fake_utils(self.net_br_resp)
+        """Test that we can load the bridges in properly."""
+        self._mock_feed(self.net_br_resp)
 
         # Assert that two are read in
-        bridges = test_utils.list_bridges()
+        bridges = utils.list_bridges(self.adpt, 'host_uuid')
         self.assertEqual(2, len(bridges))
         self.assertTrue(isinstance(bridges[0], pvm_net.NetBridge))
 
     def test_list_vm_entries(self):
-        '''
-        Validates that VMs can be iterated on properly.
-        '''
-        test_utils = self.__build_fake_utils(self.vm_feed_resp)
+        """Validates that VMs can be iterated on properly."""
+        self._mock_feed(self.vm_feed_resp)
 
         # List the VMs and make some assertions
-        vm_list = test_utils._list_vm_entries()
+        vm_list = utils._list_vm_entries(self.adpt, 'host_uuid')
         self.assertEqual(17, len(vm_list))
         for vm in vm_list:
             self.assertIsNotNone(vm.uuid)
 
     def test_get_vswitch_map(self):
-        test_utils = self.__build_fake_utils(self.vswitch_resp)
-        resp = test_utils.get_vswitch_map()
+        self._mock_feed(self.vswitch_resp)
+        resp = utils.get_vswitch_map(self.adpt, 'host_uuid')
         self.assertEqual('https://9.1.2.3:12443/rest/api/uom/ManagedSystem/'
                          'c5d782c7-44e4-3086-ad15-b16fb039d63b/VirtualSwitch/'
                          'e1a852cb-2be5-3a51-9147-43761bc3d720',
                          resp[0])
 
     def test_find_nb_for_cna(self):
-        test_utils = self.__build_fake_utils(self.vswitch_resp)
+        self._mock_feed(self.vswitch_resp)
 
         nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
 
@@ -157,25 +140,23 @@ class UtilsTest(base.BasePVMTestCase):
                                         'VirtualSwitch/'
                                         'e1a852cb-2be5-3a51-9147-43761bc3d720')
 
-        vswitch_map = test_utils.get_vswitch_map()
+        vswitch_map = utils.get_vswitch_map(self.adpt, 'host_uuid')
 
         # Should have a proper URI, so it should match
-        resp = test_utils.find_nb_for_cna(nb_wraps, mock_client_adpt,
-                                          vswitch_map)
+        resp = utils.find_nb_for_cna(nb_wraps, mock_client_adpt, vswitch_map)
         self.assertIsNotNone(resp)
 
         # Should not match if we change the vswitch URI
         mock_client_adpt.vswitch_uri = "Fake"
-        resp = test_utils.find_nb_for_cna(nb_wraps, mock_client_adpt,
-                                          vswitch_map)
+        resp = utils.find_nb_for_cna(nb_wraps, mock_client_adpt, vswitch_map)
         self.assertIsNone(resp)
 
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                '_list_vm_entries')
     @mock.patch('pypowervm.wrappers.network.CNA.wrap')
-    def test_list_cnas(self, mock_cna_wrap):
-        '''
-        Validates that the CNA's can be iterated against.
-        '''
-        test_utils = self.__build_fake_utils(self.cna_resp)
+    def test_list_cnas(self, mock_cna_wrap, mock_list_vms):
+        """Validates that the CNA's can be iterated against."""
+        self._mock_feed(self.cna_resp)
 
         # Override the VM Entries with a fake CNA
         class FakeVM(object):
@@ -184,76 +165,78 @@ class UtilsTest(base.BasePVMTestCase):
                 return 'fake_uuid'
         vm = FakeVM()
 
-        def list_vms():
+        def list_vms(adapter, host_uuid):
             return [vm]
 
-        test_utils._list_vm_entries = list_vms
+        mock_list_vms.side_effect = list_vms
         mock_cna_wrap.return_value = ['mocked']
 
         # Get the CNAs and validate
-        cnas = test_utils.list_cnas()
+        cnas = utils.list_cnas(self.adpt, 'host_uuid')
         self.assertEqual(1, len(cnas))
 
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.PVMUtils.'
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
     def test_parse_sea_mappings(self, mock_list_br):
         nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
         mock_list_br.return_value = nb_wraps
 
-        test_utils = self.__build_fake_utils(self.vios_feed_resp)
-        resp = test_utils.parse_sea_mappings('default:ent8:21-25D0A')
+        self._mock_feed(self.vios_feed_resp)
+        resp = utils.parse_sea_mappings(self.adpt, 'host_uuid',
+                                        'default:ent8:21-25D0A')
 
         self.assertEqual(1, len(resp.keys()))
         self.assertEqual('default', resp.keys()[0])
         self.assertEqual('764f3423-04c5-3b96-95a3-4764065400bd',
                          resp['default'])
 
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.PVMUtils.'
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
     def test_parse_sea_mappings_no_bridges(self, mock_list_br):
         mock_list_br.return_value = []
-        test_utils = self.__build_fake_utils(self.vios_feed_resp)
-        self.assertRaises(np_exc.NoNetworkBridges,
-                          test_utils.parse_sea_mappings, '1:2:3')
+        self._mock_feed(self.vios_feed_resp)
+        self.assertRaises(np_exc.NoNetworkBridges, utils.parse_sea_mappings,
+                          self.adpt, 'host_uuid', '1:2:3')
 
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.PVMUtils.'
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
     def test_parse_sea_mappings_no_mapping(self, mock_list_br):
         nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
         mock_list_br.return_value = nb_wraps
 
-        test_utils = self.__build_fake_utils(self.vios_feed_resp)
-        resp = test_utils.parse_sea_mappings('default:ent8:21-25D0A')
+        self._mock_feed(self.vios_feed_resp)
+        resp = utils.parse_sea_mappings(self.adpt, 'host_uuid',
+                                        'default:ent8:21-25D0A')
 
         self.assertEqual({'default': '764f3423-04c5-3b96-95a3-4764065400bd'},
                          resp)
 
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.PVMUtils.'
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 '_parse_empty_bridge_mapping')
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.PVMUtils.'
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
     def test_parse_call_to_empty_bridge(self, mock_list_br, mock_empty):
         nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
         mock_list_br.return_value = nb_wraps
 
-        test_utils = self.__build_fake_utils(self.vios_feed_resp)
-        test_utils.parse_sea_mappings('')
+        self._mock_feed(self.vios_feed_resp)
+        utils.parse_sea_mappings(self.adpt, 'host_uuid', '')
 
         # Make sure the _parse_empty_bridge_mapping method was called
         self.assertEqual(1, mock_empty.call_count)
 
     def test_parse_empty_bridge_mappings(self):
-        test_utils = self.__build_fake_utils(self.vios_feed_resp)
+        self._mock_feed(self.vios_feed_resp)
 
         proper_wrap = mock.MagicMock()
         proper_wrap.uuid = '5'
-        resp = test_utils._parse_empty_bridge_mapping([proper_wrap])
+        resp = utils._parse_empty_bridge_mapping([proper_wrap])
 
         self.assertEqual({'default': '5'}, resp)
 
         # Try the failure path
         self.assertRaises(np_exc.MultiBridgeNoMapping,
-                          test_utils._parse_empty_bridge_mapping,
+                          utils._parse_empty_bridge_mapping,
                           [proper_wrap, mock.Mock()])
 
     def test_update_cna_pvid(self):
@@ -265,11 +248,11 @@ class UtilsTest(base.BasePVMTestCase):
             cna.refresh.return_value = cna
             return cna
 
-        test_utils = self.__build_fake_utils(self.vios_feed_resp)
+        self._mock_feed(self.vios_feed_resp)
 
         # Attempt happy path
         cna = build_mock()
-        test_utils.update_cna_pvid(cna, 5)
+        utils.update_cna_pvid(cna, 5)
         self.assertEqual(5, cna.pvid)
         self.assertEqual(1, cna.update.call_count)
 
@@ -281,15 +264,14 @@ class UtilsTest(base.BasePVMTestCase):
         error = pvm_exc.HttpError('msg', err_resp)
 
         cna.update.side_effect = [error, error, error]
-        self.assertRaises(pvm_exc.HttpError, test_utils.update_cna_pvid,
-                          cna, 5)
+        self.assertRaises(pvm_exc.HttpError, utils.update_cna_pvid, cna, 5)
         self.assertEqual(3, cna.update.call_count)
         self.assertEqual(2, cna.refresh.call_count)
 
         # Raise an error 2 times and then eventually works
         cna = build_mock()
         cna.update.side_effect = [error, error, None]
-        test_utils.update_cna_pvid(cna, 5)
+        utils.update_cna_pvid(cna, 5)
         self.assertEqual(3, cna.update.call_count)
         self.assertEqual(2, cna.refresh.call_count)
 
@@ -298,7 +280,6 @@ class UtilsTest(base.BasePVMTestCase):
         err_resp.status = pvm_const.HTTPStatus.UNAUTHORIZED
         cna.update.side_effect = pvm_exc.HttpError('msg', err_resp)
 
-        self.assertRaises(pvm_exc.HttpError, test_utils.update_cna_pvid,
-                          cna, 5)
+        self.assertRaises(pvm_exc.HttpError, utils.update_cna_pvid, cna, 5)
         self.assertEqual(1, cna.update.call_count)
         self.assertEqual(0, cna.refresh.call_count)

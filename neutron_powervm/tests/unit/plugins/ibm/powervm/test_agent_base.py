@@ -16,6 +16,8 @@
 
 import mock
 
+from pypowervm.tests import test_fixtures as pvm_fx
+
 from neutron_powervm.plugins.ibm.agent.powervm import agent_base
 from neutron_powervm.tests.unit.plugins.ibm.powervm import base
 
@@ -36,14 +38,18 @@ class TestAgentBase(base.BasePVMTestCase):
 
     def build_test_agent(self):
         """Builds a simple test agent."""
-        with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
-                        'PVMUtils'),\
+        self.adpt = self.useFixture(
+            pvm_fx.AdapterFx(traits=pvm_fx.LocalPVMTraits)).adpt
+
+        with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
+                        'BasePVMNeutronAgent.setup_adapter'),\
                 mock.patch('neutron_powervm.plugins.ibm.agent.powervm.'
                            'agent_base.BasePVMNeutronAgent.setup_rpc'):
             agent = agent_base.BasePVMNeutronAgent('binary_name', 'agent_type')
             agent.context = mock.Mock()
             agent.agent_id = 'pvm'
             agent.plugin_rpc = mock.MagicMock()
+            agent.adapter = self.adpt
         return agent
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'

@@ -60,11 +60,11 @@ class FakeSharedEthernetPluginApi(agent_rpc.PluginApi):
 
 
 class FakeSharedEthernetRpcCallbacks(object):
-    '''
+    """
     Provides call backs (as defined in the setup_rpc method within the
     FakeSharedEthernetNeutronAgent class) that will be invoked upon certain
     actions from the controller.
-    '''
+    """
 
     # This agent supports RPC Version 1.0.  For reference:
     #  1.0 Initial version
@@ -73,12 +73,12 @@ class FakeSharedEthernetRpcCallbacks(object):
     RPC_API_VERSION = '1.1'
 
     def __init__(self, agent):
-        '''
+        """
         Creates the call back.  Most of the call back methods will be
         delegated to the agent.
 
         :param agent: The owning agent to delegate the callbacks to.
-        '''
+        """
         super(FakeSharedEthernetRpcCallbacks, self).__init__()
         self.agent = agent
 
@@ -93,7 +93,7 @@ class FakeSharedEthernetRpcCallbacks(object):
 
 
 class FakeSharedEthernetNeutronAgent(object):
-    '''
+    """
     This agent provides a simulation baseline that mirrors the baseline
     Shared Ethernet Neutron Agent, but can run independently.  The intent is
     to mirror the purpose of the fake driver in Nova.
@@ -101,12 +101,10 @@ class FakeSharedEthernetNeutronAgent(object):
     Timeouts and RPC callbacks should mirror that of the standard agent.
     As development is proceeding with the main agent, this class will need
     to be updated as well.
-    '''
+    """
 
     def __init__(self):
-        '''
-        Constructs the agent.
-        '''
+        """Constructs the agent."""
         # Define the baseline agent_state that will be reported back for the
         # health status
         self.agent_state = {
@@ -122,9 +120,7 @@ class FakeSharedEthernetNeutronAgent(object):
         self.updated_ports = set()
 
     def setup_rpc(self):
-        '''
-        Registers the RPC consumers for the plugin.
-        '''
+        """Registers the RPC consumers for the plugin."""
         self.agent_id = 'sea-agent-%s' % cfg.CONF.host
         self.topic = topics.AGENT
         self.plugin_rpc = FakeSharedEthernetPluginApi(topics.PLUGIN)
@@ -151,12 +147,12 @@ class FakeSharedEthernetNeutronAgent(object):
             heartbeat.start(interval=report_interval)
 
     def _report_state(self):
-        '''
+        """
         Reports the state of the agent back to the controller.  Controller
         knows that if a response isn't provided in a certain period of time
         then the agent is dead.  This call simply tells the controller that
         the agent is alive.
-        '''
+        """
         # TODO(jarnold) provide some level of devices connected to this agent.
         try:
             device_count = 0
@@ -168,22 +164,20 @@ class FakeSharedEthernetNeutronAgent(object):
             LOG.exception(_LE("Failed reporting state!"))
 
     def _update_port(self, port):
-        '''
-        Invoked to indicate that a port has been updated within Neutron.
-        '''
+        """Invoked to indicate that a port has been updated within Neutron."""
         self.updated_ports.add(port)
 
     def _list_updated_ports(self):
-        '''
+        """
         Will return (and then reset) the list of updated ports received
         from the system.
-        '''
+        """
         ports = copy.copy(self.updated_ports)
         self.updated_ports = set()
         return ports
 
     def _scan_port_delta(self, updated_ports):
-        '''
+        """
         Determines from the updated_ports list which ports are new, which are
         removed, and which are unchanged.
 
@@ -191,7 +185,7 @@ class FakeSharedEthernetNeutronAgent(object):
                               Neutron Server.
         :returns: Dictionary of the input split into a set of 'added',
                   'removed' and 'updated' ports.
-        '''
+        """
         # TODO(jarnold) Will need to keep track of which ports were previously
         # added.
 
@@ -200,11 +194,11 @@ class FakeSharedEthernetNeutronAgent(object):
                 'updated': None}
 
     def rpc_loop(self):
-        '''
+        """
         Runs a check periodically to determine if new ports were added or
         removed.  Will call down to appropriate methods to determine correct
         course of action.
-        '''
+        """
         while True:
             # Determine if there are new ports
             u_ports = self._list_updated_ports()

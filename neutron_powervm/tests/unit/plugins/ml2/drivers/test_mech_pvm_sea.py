@@ -29,27 +29,26 @@ class TestPvmMechDriver(base.BasePVMTestCase):
         self.mech_drv = m_pvm.PvmSEAMechanismDriver()
 
     def test_check_segment_for_agent(self):
-        '''
-        Validates that the VLAN type is supported by the agent.
-        '''
+        """Validates that the VLAN type is supported by the agent."""
+
         fake_segment = {api.NETWORK_TYPE: 'vlan'}
         self.assertTrue(self.mech_drv.check_segment_for_agent(fake_segment,
-            None))
+                                                              None))
 
         bad_segment = {api.NETWORK_TYPE: 'gre'}
         self.assertFalse(self.mech_drv.check_segment_for_agent(bad_segment,
-            None))
+                                                               None))
 
     @mock.patch('neutron.plugins.ml2.drivers.mech_agent.'
                 'SimpleAgentMechanismDriverBase.'
                 'try_to_bind_segment_for_agent', return_value=True)
     def test_try_to_bind_segment_for_agent(self, try_bind):
         fake_segment = {api.NETWORK_TYPE: 'vlan', api.SEGMENTATION_ID: '1000',
-                api.PHYSICAL_NETWORK: 'default'}
+                        api.PHYSICAL_NETWORK: 'default'}
         fake_context = mock.MagicMock()
         self.mech_drv.rpc_publisher = mock.MagicMock()
         self.mech_drv.try_to_bind_segment_for_agent(fake_context, fake_segment,
-                None)
+                                                    None)
         self.mech_drv.rpc_publisher.port_update.assert_called_with(
                 fake_context._plugin_context, fake_context._port,
                 'vlan', '1000', 'default')
