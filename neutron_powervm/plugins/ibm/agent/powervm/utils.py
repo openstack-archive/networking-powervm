@@ -67,7 +67,7 @@ def parse_sea_mappings(adapter, host_uuid, mapping):
     :return: The output dictionary described above.
     """
     # Read all the network bridges.
-    nb_wraps = list_bridges()
+    nb_wraps = list_bridges(adapter, host_uuid)
 
     if len(nb_wraps) == 0:
         raise np_exc.NoNetworkBridges()
