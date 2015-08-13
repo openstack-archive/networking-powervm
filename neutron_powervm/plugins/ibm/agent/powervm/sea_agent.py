@@ -203,8 +203,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
             nb_req_vlans[nb_wrap.uuid] = set()
 
         for dev in devs:
-            nb_uuid = self.br_map.get(dev.get('physical_network'))
-            req_vlan = dev.get('segmentation_id')
+            nb_uuid, req_vlan = self._get_nb_and_vlan(dev)
 
             # This can happen for ports that are on the host, but not in
             # Neutron.
@@ -297,11 +296,11 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         for dev in devices:
             # Break the ports into their respective lists broken down by
             # Network Bridge.
-            nb_uuid = self.br_map.get(dev.get('physical_network'))
+            nb_uuid, vlan = self._get_nb_and_vlan(dev)
             if nb_to_vlan.get(nb_uuid) is None:
                 nb_to_vlan[nb_uuid] = set()
 
-            nb_to_vlan[nb_uuid].add(dev.get('segmentation_id'))
+            nb_to_vlan[nb_uuid].add(vlan)
 
         # For each bridge, make sure the VLANs are serviced.
         for nb_uuid in nb_to_vlan.keys():
@@ -315,6 +314,16 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         for dev in devices:
             self.pvid_updater.add(UpdateVLANRequest(dev))
         LOG.debug('Successfully provisioned new devices.')
+
+    def _get_nb_and_vlan(self, dev):
+        """Parses bridge mappings to find a match for the device passed in.
+
+        :param dev: Neutron device to find a match for
+        :return: UUID of the NetBridge
+        :return: vlan for the neutron device
+        """
+        return self.br_map.get(dev.get('physical_network')),\
+            dev.get('segmentation_id')
 
 
 def main():

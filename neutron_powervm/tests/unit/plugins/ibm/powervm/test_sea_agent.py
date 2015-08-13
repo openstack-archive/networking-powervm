@@ -232,6 +232,14 @@ class SEAAgentTest(base.BasePVMTestCase):
         # Make sure that the loopingcall had an interval of 5.
         instance.start.assert_called_with(interval=5)
 
+    def test_get_nb_and_vlan(self):
+        """Be sure nb uuid and vlan parsed from dev properly."""
+        dev = {'physical_network': 'physnet1', 'segmentation_id': 100}
+        self.agent.br_map = {'physnet1': 'uuid1'}
+        uuid, vlan = self.agent._get_nb_and_vlan(dev)
+        self.assertEqual('uuid1', uuid)
+        self.assertEqual(100, vlan)
+
 
 class PVIDLooperTest(base.BasePVMTestCase):
 
