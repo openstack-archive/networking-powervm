@@ -120,13 +120,17 @@ class UtilsTest(base.BasePVMTestCase):
         for vm in vm_list:
             self.assertIsNotNone(vm.uuid)
 
-    def test_get_vswitch_map(self):
+    @mock.patch('pypowervm.adapter.Adapter.read')
+    def test_get_vswitch_map(self, mock_read):
         self._mock_feed(self.vswitch_resp)
         resp = utils.get_vswitch_map(self.adpt, 'host_uuid')
         self.assertEqual('https://9.1.2.3:12443/rest/api/uom/ManagedSystem/'
                          'c5d782c7-44e4-3086-ad15-b16fb039d63b/VirtualSwitch/'
                          'e1a852cb-2be5-3a51-9147-43761bc3d720',
                          resp[0])
+        mock_read.assert_called_once_with('ManagedSystem',
+                                          child_type='VirtualSwitch',
+                                          root_id='host_uuid')
 
     def test_find_nb_for_cna(self):
         self._mock_feed(self.vswitch_resp)

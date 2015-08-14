@@ -219,7 +219,7 @@ def get_vswitch_map(adapter, host_uuid):
     :param host_uuid: The UUID for the host system.
     """
     vsw_feed = adapter.read(pvm_ms.System.schema_type, root_id=host_uuid,
-                            child_type=pvm_net.VNet.schema_type)
+                            child_type=pvm_net.VSwitch.schema_type)
     vswitches = pvm_net.VSwitch.wrap(vsw_feed)
     resp = {}
     for vswitch in vswitches:
