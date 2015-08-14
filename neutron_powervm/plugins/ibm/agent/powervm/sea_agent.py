@@ -129,6 +129,14 @@ class PVIDLooper(object):
                     self.agent.update_device_down(request.dev)
                     self.requests.remove(request)
 
+    def try_update(self):
+        """Runs the update method, but wraps a try/except block around it."""
+        try:
+            self.update()
+        except Exception as e:
+            # Only log the exception, do not block the processing.
+            LOG.exception(e)
+
     def add(self, request):
         """Adds a new request to the looper utility.
 
@@ -164,7 +172,8 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         # A looping utility that updates asynchronously the PVIDs on the
         # Client Network Adapters (CNAs)
         self.pvid_updater = PVIDLooper(self)
-        pvid_l = loopingcall.FixedIntervalLoopingCall(self.pvid_updater.update)
+        pvid_l = loopingcall.FixedIntervalLoopingCall(
+            self.pvid_updater.try_update)
         pvid_l.start(interval=1)
 
     def heal_and_optimize(self, is_boot):
