@@ -73,15 +73,17 @@ class TestAgentBase(base.BasePVMTestCase):
         self.assertEqual(7, mock_provision.call_count)
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.update_device_down')
+                'build_prov_requests')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.provision_devices')
-    def test_attempt_provision(self, mock_provision, mock_dev_down):
+    def test_attempt_provision(self, mock_provision,
+                               mock_build_prov_requests):
         """Tests a successful 'attempt_provision' invocation."""
         agent = self.build_test_agent()
 
         devs = [mock.Mock(), mock.Mock(), mock.Mock()]
         agent.plugin_rpc.get_devices_details_list.return_value = devs
+        mock_build_prov_requests.return_value = devs
 
         # Invoke the test method.
         agent.attempt_provision([FakeNPort('a', 1, 'default'),
@@ -90,13 +92,15 @@ class TestAgentBase(base.BasePVMTestCase):
 
         # Validate the provision was invoked.
         mock_provision.assert_called_with(devs)
-        self.assertEqual(0, mock_dev_down.call_count)
+        for net_dev in devs:
+            self.assertFalse(net_dev.called)
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.update_device_down')
+                'build_prov_requests')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.provision_devices')
-    def test_attempt_provision_failure(self, mock_provision, mock_dev_down):
+    def test_attempt_provision_failure(self, mock_provision,
+                                       mock_build_prov_requests):
         """Tests a failed 'attempt_provision' invocation."""
         agent = self.build_test_agent()
 
@@ -105,6 +109,8 @@ class TestAgentBase(base.BasePVMTestCase):
 
         # Trigger some failure
         mock_provision.side_effect = FakeExc()
+        net_devs = [mock.Mock(), mock.Mock(), mock.Mock()]
+        mock_build_prov_requests.return_value = net_devs
 
         # Invoke the test method.
         self.assertRaises(FakeExc, agent.attempt_provision,
@@ -112,6 +118,17 @@ class TestAgentBase(base.BasePVMTestCase):
                            FakeNPort('b', 1, 'default'),
                            FakeNPort('c', 1, 'default')])
 
-        # Validate the provision was invoked.
-        mock_provision.assert_called_with(devs)
-        self.assertEqual(3, mock_dev_down.call_count)
+        # Validate the provision was invoked, but failed.
+        mock_provision.assert_called_with(net_devs)
+        for net_dev in net_devs:
+            self.assertTrue(net_dev.mark_down.called)
+
+    def test_build_prov_requests(self):
+        self.assertEqual([], agent_base.build_prov_requests(None, [], []))
+
+        ports = [{'uuid': '1'}, {'uuid': '2'}]
+        devs = [{'uuid': '1'}, {'uuid': '2'}, {'uuid': '3'}]
+
+        # Only 2 should be created
+        resp = agent_base.build_prov_requests(mock.Mock(), devs, ports)
+        self.assertEqual(2, len(resp))

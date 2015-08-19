@@ -32,6 +32,7 @@ from neutron.i18n import _, _LW, _LE
 from pypowervm import adapter as pvm_adpt
 from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp
+from pypowervm.utils import uuid as pvm_uuid
 
 from neutron_powervm.plugins.ibm.agent.powervm import utils
 
@@ -96,6 +97,55 @@ class PVMRpcCallbacks(object):
     def network_delete(self, context, **kwargs):
         network_id = kwargs.get('network_id')
         LOG.debug("network_delete RPC received for network: %s", network_id)
+
+
+class ProvisionRequest(object):
+    """A request for a Neutron Port to be provisioned.
+
+    The RPC device details provide some additional details that the port does
+    not necessarily have, and vice versa.  This meshes together the required
+    aspects into a single element.
+    """
+
+    def __init__(self, agent, device_detail, port):
+        self.segmentation_id = device_detail.get('segmentation_id')
+        self.physical_network = device_detail.get('physical_network')
+        self.mac_address = device_detail.get('mac_address')
+        self.device_owner = device_detail.get('device_owner')
+        self.rpc_device = device_detail
+        self._agent = agent
+        self.device_id = port.get('device_id') if port else None
+        self.lpar_uuid = (pvm_uuid.convert_uuid_to_pvm(self.device_id).upper()
+                          if self.device_id else None)
+
+    def mark_up(self):
+        """Marks a device as up to the Neutron Server"""
+        self._agent.update_device_up(self._rpc_dev)
+
+    def mark_down(self):
+        """Marks a device as down to the Neutron Server"""
+        self._agent.update_device_down(self._rpc_dev)
+
+
+def build_prov_requests(agent, devices, ports):
+    """Builds the list of ProvisionRequest objects.
+
+    :param ports: The 'Neutron Ports'
+    :param devices: The corresponding neutron device details.  Has some unique
+                    info like segmentation_id and physical_network.
+    :param agent: The agent containing the device (child of
+                  BasePVMNeutronAgent)
+    :return: A list of the ProvisionRequest objects, which mesh together the
+             Port and Device data.
+    """
+    resp = []
+    for port in ports:
+        port_uuid = port.get('uuid')
+        for dev in devices:
+            if port_uuid != dev.get('uuid'):
+                continue
+            resp.append(ProvisionRequest(agent, dev, port))
+    return resp
 
 
 class BasePVMNeutronAgent(object):
@@ -208,7 +258,7 @@ class BasePVMNeutronAgent(object):
         """
         raise NotImplementedError()
 
-    def provision_devices(self, devices):
+    def provision_devices(self, requests):
         """Invoked when a set of new Neutron ports has been detected.
 
         This method should provision the bridging for the new devices
@@ -225,8 +275,7 @@ class BasePVMNeutronAgent(object):
         provisioning.  This can be done with the agent's
         update_device_up/_down methods.
 
-        :param devices: The new devices that are to be provisioned.  Is a set
-                        of neutron devices (from the device_details).
+        :param requests: A list of ProvisionRequest objects.
         """
         raise NotImplementedError()
 
@@ -300,17 +349,20 @@ class BasePVMNeutronAgent(object):
         """
         # Convert the ports to devices.
         dev_list = [x.get('mac_address') for x in ports]
-        devs = self.plugin_rpc.get_devices_details_list(self.context,
-                                                        dev_list,
-                                                        self.agent_id)
+        devs = self.plugin_rpc.get_devices_details_list(
+            self.context, dev_list, self.agent_id)
+
+        # Build the network devices
+        provision_requests = build_prov_requests(self, devs, ports)
+
         try:
             LOG.debug("Provisioning ports for mac addresses [ %s ]" %
                       ' '.join(dev_list))
-            self.provision_devices(devs)
+            self.provision_devices(provision_requests)
         except Exception:
             # Set the state of the device as 'down'
-            for device in devs:
-                self.update_device_down(device)
+            for p_req in provision_requests:
+                p_req.mark_down()
 
             # Reraise the exception
             raise

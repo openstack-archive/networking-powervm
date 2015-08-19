@@ -27,16 +27,13 @@ from neutron import context as ctx
 
 
 def FakeClientAdpt(mac, pvid, tagged_vlans):
-    m = mock.MagicMock()
-    m.mac = mac
-    m.pvid = pvid
-    m.tagged_vlans = tagged_vlans
-    return m
+    return mock.MagicMock(mac=mac, pvid=pvid, tagged_vlans=tagged_vlans)
 
 
 def FakeNPort(mac, segment_id, phys_network):
-    return {'mac': mac, 'segmentation_id': segment_id,
-            'physical_network': phys_network}
+    device = {'physical_network': phys_network, 'segmentation_id': segment_id}
+    return mock.Mock(mac=mac, segmentation_id=segment_id, rpc_device=device,
+                     physical_network=phys_network)
 
 
 def FakeNB(uuid, pvid, tagged_vlans, addl_vlans):
@@ -234,9 +231,9 @@ class SEAAgentTest(base.BasePVMTestCase):
 
     def test_get_nb_and_vlan(self):
         """Be sure nb uuid and vlan parsed from dev properly."""
-        dev = {'physical_network': 'physnet1', 'segmentation_id': 100}
+        dev = FakeNPort('a', 100, 'physnet1')
         self.agent.br_map = {'physnet1': 'uuid1'}
-        uuid, vlan = self.agent._get_nb_and_vlan(dev)
+        uuid, vlan = self.agent._get_nb_and_vlan(dev.rpc_device)
         self.assertEqual('uuid1', uuid)
         self.assertEqual(100, vlan)
 
@@ -256,17 +253,20 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.assertEqual(1, len(self.looper.requests))
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'list_cnas')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'update_cna_pvid')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'find_cna_for_mac')
-    def test_update(self, mock_find_cna_for_mac, mock_update_cna_pvid):
-        req = sea_agent.UpdateVLANRequest(mock.MagicMock())
-        req.pvid = 27
+    def test_update(self, mock_find_cna_for_mac, mock_update_cna_pvid,
+                    mock_list_cnas):
+        req = sea_agent.UpdateVLANRequest(FakeNPort('a', 27, 'phys_net'))
         self.looper.add(req)
 
         # Mock the element returned
         mock_cna = mock.MagicMock()
         mock_find_cna_for_mac.return_value = mock_cna
+        mock_list_cnas.return_value = [mock_cna]
 
         # Call the update
         self.looper.update()
@@ -278,17 +278,22 @@ class PVIDLooperTest(base.BasePVMTestCase):
         mock_update_cna_pvid.assert_called_with(mock_cna, 27)
 
         # Make sure the port was updated
-        self.assertEqual(1, self.mock_agent.update_device_up.call_count)
-        self.assertEqual(0, self.mock_agent.update_device_down.call_count)
+        self.assertTrue(req.details.mark_up.called)
+        self.assertFalse(req.details.mark_down.called)
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'list_cnas')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'find_cna_for_mac')
-    def test_update_err(self, mock_find_cna_for_mac):
+    def test_update_err(self, mock_find_cna_for_mac, mock_list_cnas):
         """Tests that the loop will error out after multiple loops."""
-        req = sea_agent.UpdateVLANRequest(mock.MagicMock())
+        mock_net_dev = FakeNPort('a', 1000, 'phys_net')
+
+        req = sea_agent.UpdateVLANRequest(mock_net_dev)
         self.looper.add(req)
 
         # Mock the element returned
+        mock_list_cnas.return_value = []
         mock_find_cna_for_mac.return_value = None
 
         loop_count = cfg.CONF.AGENT.pvid_update_timeout
@@ -301,4 +306,4 @@ class PVIDLooperTest(base.BasePVMTestCase):
             required_count = 1 if i < loop_count else 0
             self.assertEqual(required_count, len(self.looper.requests))
 
-        self.assertEqual(1, self.mock_agent.update_device_down.call_count)
+        self.assertTrue(mock_net_dev.mark_down.called)

@@ -18,6 +18,7 @@ from oslo_log import log as logging
 
 from neutron.i18n import _LW
 
+from pypowervm import exceptions as pvm_exc
 from pypowervm import util as pvm_util
 from pypowervm.utils import retry as pvm_retry
 from pypowervm.wrappers import logical_partition as pvm_lpar
@@ -228,20 +229,35 @@ def get_vswitch_map(adapter, host_uuid):
 
 
 @pvm_retry.retry()
-def list_cnas(adapter, host_uuid):
+def list_cnas(adapter, host_uuid, lpar_uuid=None):
     """Lists all of the Client Network Adapters for the running VMs.
 
     :param adapter: The pypowervm adapter.
     :param host_uuid: The UUID for the host system.
+    :param lpar_uuid: (Optional) If specified, will only return the CNA's for
+                      a given LPAR ID.
     """
-    vms = _list_vm_entries(adapter, host_uuid)
-    total_cnas = []
+    # Get the UUIDs of the VMs to query for.
+    if lpar_uuid:
+        vm_uuids = [lpar_uuid]
+    else:
+        vm_uuids = [x.uuid for x in _list_vm_entries(adapter, host_uuid)]
 
-    for vm in vms:
-        vm_cna_feed_resp = adapter.read(
-            pvm_lpar.LPAR.schema_type, root_id=vm.uuid,
-            child_type=pvm_net.CNA.schema_type)
-        total_cnas.extend(pvm_net.CNA.wrap(vm_cna_feed_resp))
+    # Loop through the VMs
+    total_cnas = []
+    for vm_uuid in vm_uuids:
+        try:
+            # Extend the array to include the response
+            vm_cna_feed_resp = adapter.read(
+                pvm_lpar.LPAR.schema_type, root_id=vm_uuid,
+                child_type=pvm_net.CNA.schema_type)
+            total_cnas.extend(pvm_net.CNA.wrap(vm_cna_feed_resp))
+        except pvm_exc.HttpError as e:
+            # If it is a 404 (not found) then just skip.
+            if e.response is not None and e.response.status == 404:
+                pass
+            else:
+                raise
 
     return total_cnas
 
