@@ -107,34 +107,23 @@ class ProvisionRequest(object):
     aspects into a single element.
     """
 
-    def __init__(self, agent, device_detail, port):
+    def __init__(self, device_detail, port):
         self.segmentation_id = device_detail.get('segmentation_id')
         self.physical_network = device_detail.get('physical_network')
         self.mac_address = device_detail.get('mac_address')
         self.device_owner = device_detail.get('device_owner')
         self.rpc_device = device_detail
-        self._agent = agent
         self.device_id = port.get('device_id') if port else None
         self.lpar_uuid = (pvm_uuid.convert_uuid_to_pvm(self.device_id).upper()
                           if self.device_id else None)
 
-    def mark_up(self):
-        """Marks a device as up to the Neutron Server"""
-        self._agent.update_device_up(self._rpc_dev)
 
-    def mark_down(self):
-        """Marks a device as down to the Neutron Server"""
-        self._agent.update_device_down(self._rpc_dev)
-
-
-def build_prov_requests(agent, devices, ports):
+def build_prov_requests(devices, ports):
     """Builds the list of ProvisionRequest objects.
 
-    :param ports: The 'Neutron Ports'
     :param devices: The corresponding neutron device details.  Has some unique
                     info like segmentation_id and physical_network.
-    :param agent: The agent containing the device (child of
-                  BasePVMNeutronAgent)
+    :param ports: The 'Neutron Ports'
     :return: A list of the ProvisionRequest objects, which mesh together the
              Port and Device data.
     """
@@ -144,7 +133,7 @@ def build_prov_requests(agent, devices, ports):
         for dev in devices:
             if port_uuid != dev.get('uuid'):
                 continue
-            resp.append(ProvisionRequest(agent, dev, port))
+            resp.append(ProvisionRequest(dev, port))
     return resp
 
 
@@ -353,7 +342,7 @@ class BasePVMNeutronAgent(object):
             self.context, dev_list, self.agent_id)
 
         # Build the network devices
-        provision_requests = build_prov_requests(self, devs, ports)
+        provision_requests = build_prov_requests(devs, ports)
 
         try:
             LOG.debug("Provisioning ports for mac addresses [ %s ]" %

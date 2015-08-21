@@ -103,9 +103,19 @@ class PVIDLooper(object):
         # Loop through the current requests.  Try to update the PVIDs, but
         # if we are unable, then increment the attempt count.
         for request in current_requests:
-            # Pull the ProvisionRequest off the VLAN Update call.
-            p_req = request.details
+            self._update_req(request)
 
+    def _update_req(self, request):
+        """Attempts to provision a given UpdateVLANRequest.
+
+        :param request: The UpdateVLANRequest.
+        :return: True if the request was successfully processed.  False if it
+                 was not able to process.
+        """
+        # Pull the ProvisionRequest off the VLAN Update call.
+        p_req = request.details
+
+        try:
             # Get the adapters just for the VM that the request is for.
             client_adpts = utils.list_cnas(self.adapter, self.host_uuid,
                                            lpar_uuid=p_req.lpar_uuid)
@@ -116,19 +126,25 @@ class PVIDLooper(object):
                 utils.update_cna_pvid(cna, p_req.segmentation_id)
                 LOG.debug("Sending update device for %s" %
                           p_req.mac_address)
-                p_req.mark_up()
+                self.agent.update_device_up(p_req.rpc_device)
                 self.requests.remove(request)
-            else:
-                # Increment the request count.
-                request.attempt_count += 1
-                if request.attempt_count >= ACONF.pvid_update_timeout:
-                    LOG.error(_LE("Unable to update PVID to %(pvid)s for "
-                                  "MAC Address %(mac)s as there was no valid "
-                                  "network adapter found."),
-                              {'pvid': p_req.segmentation_id,
-                               'mac': p_req.mac_address})
-                    p_req.mark_down()
-                    self.requests.remove(request)
+                return
+
+        except Exception as e:
+            LOG.warn(_LW("An error occurred while attempting to update the "
+                         "PVID of the virtual NIC."))
+            LOG.exception(e)
+
+        # Increment the request count.
+        request.attempt_count += 1
+        if request.attempt_count >= ACONF.pvid_update_timeout:
+            LOG.error(_LE("Unable to update PVID to %(pvid)s for "
+                          "MAC Address %(mac)s as there was no valid "
+                          "network adapter found."),
+                      {'pvid': p_req.segmentation_id,
+                       'mac': p_req.mac_address})
+            self.agent.update_device_down(p_req.rpc_device)
+            self.requests.remove(request)
 
     def try_update(self):
         """Runs the update method, but wraps a try/except block around it."""
@@ -213,7 +229,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
             nb_req_vlans[nb_wrap.uuid] = set()
 
         for dev in devs:
-            nb_uuid, req_vlan = self._get_nb_and_vlan(dev)
+            nb_uuid, req_vlan = self._get_nb_and_vlan(dev, emit_warnings=False)
 
             # This can happen for ports that are on the host, but not in
             # Neutron.
@@ -305,7 +321,13 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         for p_req in requests:
             # Break the ports into their respective lists broken down by
             # Network Bridge.
-            nb_uuid, vlan = self._get_nb_and_vlan(p_req.rpc_device)
+            nb_uuid, vlan = self._get_nb_and_vlan(p_req.rpc_device,
+                                                  emit_warnings=True)
+
+            # A warning message will be printed to user if this were to occur
+            if nb_uuid is None:
+                continue
+
             if nb_to_vlan.get(nb_uuid) is None:
                 nb_to_vlan[nb_uuid] = set()
 
@@ -324,14 +346,21 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
             self.pvid_updater.add(UpdateVLANRequest(p_req))
         LOG.debug('Successfully provisioned new devices.')
 
-    def _get_nb_and_vlan(self, dev):
+    def _get_nb_and_vlan(self, dev, emit_warnings=False):
         """Parses bridge mappings to find a match for the device passed in.
         :param dev: Neutron device to find a match for
+        :param emit_warnings: (Optional) Defaults to False.  If true, will emit
+                              a warning if the configuration is off.
         :return: UUID of the NetBridge
         :return: vlan for the neutron device
         """
-        return self.br_map.get(dev.get('physical_network')),\
-            dev.get('segmentation_id')
+        nb_uuid = self.br_map.get(dev.get('physical_network'))
+        if not nb_uuid and emit_warnings:
+            LOG.warn(_LW("Unable to determine the Network Bridge (Shared "
+                         "Ethernet Adapter) for physical network %s.  Will "
+                         "be unable to determine appropriate provisioning "
+                         "action."), dev.get('physical_network'))
+        return nb_uuid, dev.get('segmentation_id')
 
 
 def main():

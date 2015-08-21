@@ -278,8 +278,8 @@ class PVIDLooperTest(base.BasePVMTestCase):
         mock_update_cna_pvid.assert_called_with(mock_cna, 27)
 
         # Make sure the port was updated
-        self.assertTrue(req.details.mark_up.called)
-        self.assertFalse(req.details.mark_down.called)
+        self.assertFalse(self.mock_agent.update_device_down.called)
+        self.assertTrue(self.mock_agent.update_device_up.called)
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_cnas')
@@ -306,4 +306,5 @@ class PVIDLooperTest(base.BasePVMTestCase):
             required_count = 1 if i < loop_count else 0
             self.assertEqual(required_count, len(self.looper.requests))
 
-        self.assertTrue(mock_net_dev.mark_down.called)
+        self.assertTrue(self.mock_agent.update_device_down.called)
+        self.assertFalse(self.mock_agent.update_device_up.called)
