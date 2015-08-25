@@ -14,32 +14,34 @@
       License for the specific language governing permissions and limitations
       under the License.
 
-Welcome to neutron-powervm's documentation!
-===========================================
+Developer Guide
+===============
 
-This project will provide an ML2 compatible agent for PowerVM Shared
-Ethernet Adapter integration with OpenStack Neutron.
+In the Developer Guide, you will find information on how to develop for
+Neutron-PowerVM and how it interacts with Neutron. You will also find
+information on setup and usage of Neutron-PowerVM.
 
-Documentation on Neutron can be found at the `Neutron Devref`_.
 
-.. _`Neutron Devref`: http://docs.openstack.org/developer/neutron/devref
-
-Neutron-PowerVM Policies
-========================
-
-Contents:
-
+Internals and Programming
+-------------------------
 .. toctree::
-   :maxdepth: 1
+    :maxdepth: 3
 
-   policies/index
+    development_environment
+    usage
 
-Neutron-PowerVM Devref
-======================
 
-Contents:
-
+Testing
+-------
 .. toctree::
-   :maxdepth: 1
+    :maxdepth: 3
 
-   devref/index
+    testing
+
+Indices and tables
+------------------
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
+

@@ -5,3 +5,4 @@ neutron_powervm.egg-info/
 *.pyc
 .*.swp
 /.idea/
+doc/build
