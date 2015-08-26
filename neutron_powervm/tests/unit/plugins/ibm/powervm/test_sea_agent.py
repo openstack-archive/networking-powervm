@@ -293,7 +293,7 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.looper.add(req)
 
         # Mock the element returned
-        mock_list_cnas.return_value = []
+        mock_list_cnas.return_value = [mock.Mock(mac='AABBCCDDEEFF', pvid=5)]
         mock_find_cna_for_mac.return_value = None
 
         loop_count = cfg.CONF.AGENT.pvid_update_timeout

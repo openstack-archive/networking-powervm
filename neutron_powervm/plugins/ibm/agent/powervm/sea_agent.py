@@ -17,10 +17,10 @@
 import copy
 import eventlet
 eventlet.monkey_patch()
+import time
 
 from oslo_config import cfg
 from oslo_log import log as logging
-from oslo_service import loopingcall
 
 from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
@@ -114,6 +114,7 @@ class PVIDLooper(object):
         """
         # Pull the ProvisionRequest off the VLAN Update call.
         p_req = request.details
+        client_adpts = []
 
         try:
             # Get the adapters just for the VM that the request is for.
@@ -143,16 +144,29 @@ class PVIDLooper(object):
                           "network adapter found."),
                       {'pvid': p_req.segmentation_id,
                        'mac': p_req.mac_address})
+
+            # Log additionally the adapters (if any) that were found for the
+            # client LPAR.
+            count = 0
+            for cna in client_adpts:
+                LOG.error(_LE("Existing Adapter %(num)d: mac %(mac)s, pvid "
+                              "%(pvid)d"), {'num': count, 'mac': cna.mac,
+                                            'pvid': cna.pvid})
+                count += 1
             self.agent.update_device_down(p_req.rpc_device)
             self.requests.remove(request)
 
-    def try_update(self):
+    def looping_call(self):
         """Runs the update method, but wraps a try/except block around it."""
-        try:
-            self.update()
-        except Exception as e:
-            # Only log the exception, do not block the processing.
-            LOG.exception(e)
+        while True:
+            try:
+                self.update()
+            except Exception as e:
+                # Only log the exception, do not block the processing.
+                LOG.exception(e)
+
+            # Sleep for a second.
+            time.sleep(1)
 
     def add(self, request):
         """Adds a new request to the looper utility.
@@ -189,9 +203,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         # A looping utility that updates asynchronously the PVIDs on the
         # Client Network Adapters (CNAs)
         self.pvid_updater = PVIDLooper(self)
-        pvid_l = loopingcall.FixedIntervalLoopingCall(
-            self.pvid_updater.try_update)
-        pvid_l.start(interval=1)
+        eventlet.spawn_n(self.pvid_updater.looping_call)
 
     def heal_and_optimize(self, is_boot):
         """Heals the system's network bridges and optimizes.
