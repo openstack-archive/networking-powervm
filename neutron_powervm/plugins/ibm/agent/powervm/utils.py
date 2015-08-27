@@ -228,6 +228,16 @@ def get_vswitch_map(adapter, host_uuid):
     return resp
 
 
+def list_lpar_uuids(adapter, host_uuid):
+    """Returns a list of all of the VM UUIDs.
+
+    :param adapter: The pypowervm adapter.
+    :param host_uuid: The UUID for the host system.
+    :return: List of UUIDs for the VMs.
+    """
+    return [x.uuid for x in _list_vm_entries(adapter, host_uuid)]
+
+
 @pvm_retry.retry()
 def list_cnas(adapter, host_uuid, lpar_uuid=None):
     """Lists all of the Client Network Adapters for the running VMs.

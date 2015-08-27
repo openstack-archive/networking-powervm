@@ -33,7 +33,7 @@ def FakeClientAdpt(mac, pvid, tagged_vlans):
 def FakeNPort(mac, segment_id, phys_network):
     device = {'physical_network': phys_network, 'segmentation_id': segment_id}
     return mock.Mock(mac=mac, segmentation_id=segment_id, rpc_device=device,
-                     physical_network=phys_network)
+                     physical_network=phys_network, lpar_uuid='lpar_uuid')
 
 
 def FakeNB(uuid, pvid, tagged_vlans, addl_vlans):
@@ -253,13 +253,15 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.assertEqual(1, len(self.looper.requests))
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'list_lpar_uuids')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_cnas')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'update_cna_pvid')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'find_cna_for_mac')
     def test_update(self, mock_find_cna_for_mac, mock_update_cna_pvid,
-                    mock_list_cnas):
+                    mock_list_cnas, mock_uuids):
         req = sea_agent.UpdateVLANRequest(FakeNPort('a', 27, 'phys_net'))
         self.looper.add(req)
 
@@ -267,6 +269,7 @@ class PVIDLooperTest(base.BasePVMTestCase):
         mock_cna = mock.MagicMock()
         mock_find_cna_for_mac.return_value = mock_cna
         mock_list_cnas.return_value = [mock_cna]
+        mock_uuids.return_value = ['lpar_uuid']
 
         # Call the update
         self.looper.update()
@@ -280,6 +283,24 @@ class PVIDLooperTest(base.BasePVMTestCase):
         # Make sure the port was updated
         self.assertFalse(self.mock_agent.update_device_down.called)
         self.assertTrue(self.mock_agent.update_device_up.called)
+
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'list_lpar_uuids')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'list_cnas')
+    def test_update_no_lpar(self, mock_list_cnas, mock_uuids):
+        req = sea_agent.UpdateVLANRequest(FakeNPort('a', 27, 'phys_net'))
+        self.looper.add(req)
+
+        # Mock the element returned
+        mock_uuids.return_value = []
+
+        # Call the update
+        self.looper.update()
+
+        # Check to make sure the request was pulled off
+        self.assertEqual(1, len(self.looper.requests))
+        self.assertFalse(mock_list_cnas.called)
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_cnas')

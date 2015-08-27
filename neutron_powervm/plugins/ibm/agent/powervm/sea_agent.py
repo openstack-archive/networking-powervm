@@ -100,12 +100,15 @@ class PVIDLooper(object):
         if len(current_requests) == 0:
             return
 
+        # Get the lpar UUIDs up front.
+        lpar_uuids = utils.list_lpar_uuids(self.adapter, self.host_uuid)
+
         # Loop through the current requests.  Try to update the PVIDs, but
         # if we are unable, then increment the attempt count.
         for request in current_requests:
-            self._update_req(request)
+            self._update_req(request, lpar_uuids)
 
-    def _update_req(self, request):
+    def _update_req(self, request, lpar_uuids):
         """Attempts to provision a given UpdateVLANRequest.
 
         :param request: The UpdateVLANRequest.
@@ -117,19 +120,20 @@ class PVIDLooper(object):
         client_adpts = []
 
         try:
-            # Get the adapters just for the VM that the request is for.
-            client_adpts = utils.list_cnas(self.adapter, self.host_uuid,
-                                           lpar_uuid=p_req.lpar_uuid)
-            cna = utils.find_cna_for_mac(p_req.mac_address, client_adpts)
-            if cna:
-                # Found the adapter!  Update the PVID and inform Neutron of the
-                # device now being fully online.
-                utils.update_cna_pvid(cna, p_req.segmentation_id)
-                LOG.debug("Sending update device for %s" %
-                          p_req.mac_address)
-                self.agent.update_device_up(p_req.rpc_device)
-                self.requests.remove(request)
-                return
+            if p_req.lpar_uuid in lpar_uuids:
+                # Get the adapters just for the VM that the request is for.
+                client_adpts = utils.list_cnas(self.adapter, self.host_uuid,
+                                               lpar_uuid=p_req.lpar_uuid)
+                cna = utils.find_cna_for_mac(p_req.mac_address, client_adpts)
+                if cna:
+                    # Found the adapter!  Update the PVID and inform Neutron of
+                    # the device now being fully online.
+                    utils.update_cna_pvid(cna, p_req.segmentation_id)
+                    LOG.debug("Sending update device for %s" %
+                              p_req.mac_address)
+                    self.agent.update_device_up(p_req.rpc_device)
+                    self.requests.remove(request)
+                    return
 
         except Exception as e:
             LOG.warn(_LW("An error occurred while attempting to update the "
