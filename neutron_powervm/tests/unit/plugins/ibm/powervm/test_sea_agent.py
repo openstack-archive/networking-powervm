@@ -321,7 +321,7 @@ class PVIDLooperTest(base.BasePVMTestCase):
         mock_list_cnas.return_value = [mock.Mock(mac='AABBCCDDEEFF', pvid=5)]
         mock_find_cna_for_mac.return_value = None
 
-        loop_count = cfg.CONF.AGENT.pvid_update_timeout
+        loop_count = cfg.CONF.AGENT.pvid_update_loops
 
         for i in range(1, loop_count + 1):
             # Call the update
