@@ -303,10 +303,13 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.assertFalse(mock_list_cnas.called)
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+                'list_lpar_uuids')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_cnas')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
                 'find_cna_for_mac')
-    def test_update_err(self, mock_find_cna_for_mac, mock_list_cnas):
+    def test_update_err(self, mock_find_cna_for_mac, mock_list_cnas,
+                        mock_list_lpar_uuids):
         """Tests that the loop will error out after multiple loops."""
         mock_net_dev = FakeNPort('a', 1000, 'phys_net')
 
@@ -314,6 +317,7 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.looper.add(req)
 
         # Mock the element returned
+        mock_list_lpar_uuids.return_value = 'lpar_uuid'
         mock_list_cnas.return_value = [mock.Mock(mac='AABBCCDDEEFF', pvid=5)]
         mock_find_cna_for_mac.return_value = None
 

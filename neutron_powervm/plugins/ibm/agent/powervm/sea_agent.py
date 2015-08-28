@@ -143,22 +143,31 @@ class PVIDLooper(object):
         # Increment the request count.
         request.attempt_count += 1
         if request.attempt_count >= ACONF.pvid_update_timeout:
-            LOG.error(_LE("Unable to update PVID to %(pvid)s for "
-                          "MAC Address %(mac)s as there was no valid "
-                          "network adapter found."),
-                      {'pvid': p_req.segmentation_id,
-                       'mac': p_req.mac_address})
+            # If it had been on the system...this is an error.
+            if p_req.lpar_uuid in lpar_uuids:
+                self._mark_failed(p_req, client_adpts)
 
-            # Log additionally the adapters (if any) that were found for the
-            # client LPAR.
-            count = 0
-            for cna in client_adpts:
-                LOG.error(_LE("Existing Adapter %(num)d: mac %(mac)s, pvid "
-                              "%(pvid)d"), {'num': count, 'mac': cna.mac,
-                                            'pvid': cna.pvid})
-                count += 1
-            self.agent.update_device_down(p_req.rpc_device)
+            # Remove the request from the overall queue
             self.requests.remove(request)
+
+    def _mark_failed(self, p_req, client_adpts):
+        """Marks a provision request as failed."""
+        LOG.error(_LE("Unable to update PVID to %(pvid)s for MAC Address "
+                      "%(mac)s as there was no valid network adapter found."),
+                  {'pvid': p_req.segmentation_id,
+                   'mac': p_req.mac_address})
+
+        # Log additionally the adapters (if any) that were found for the
+        # client LPAR.
+        count = 0
+        for cna in client_adpts:
+            LOG.error(_LE("Existing Adapter %(num)d: mac %(mac)s, pvid "
+                          "%(pvid)d"), {'num': count, 'mac': cna.mac,
+                                        'pvid': cna.pvid})
+            count += 1
+
+        # Mark the device down.
+        self.agent.update_device_down(p_req.rpc_device)
 
     def looping_call(self):
         """Runs the update method, but wraps a try/except block around it."""

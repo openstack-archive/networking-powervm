@@ -129,10 +129,20 @@ def build_prov_requests(devices, ports):
     """
     resp = []
     for port in ports:
-        port_uuid = port.get('uuid')
+        port_uuid = port.get('id')
+
+        # Make sure we have a UUID
+        if port_uuid is None:
+            continue
+
         for dev in devices:
-            if port_uuid != dev.get('uuid'):
+            # If the device's id (really the port uuid) doesn't match, ignore
+            # it.
+            dev_pid = dev.get('port_id')
+            if dev_pid is None or port_uuid != dev_pid:
                 continue
+
+            # Valid request.  Add it
             resp.append(ProvisionRequest(dev, port))
     return resp
 

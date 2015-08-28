@@ -124,11 +124,11 @@ class TestAgentBase(base.BasePVMTestCase):
             self.assertTrue(net_dev.mark_down.called)
 
     def test_build_prov_requests(self):
+        # Do a base check
         self.assertEqual([], agent_base.build_prov_requests([], []))
 
-        ports = [{'uuid': '1'}, {'uuid': '2'}]
-        devs = [{'uuid': '1'}, {'uuid': '2'}, {'uuid': '3'}]
-
         # Only 2 should be created
+        ports = [{'id': '1'}, {}, {'id': '2'}]
+        devs = [{'port_id': '3'}, {}, {'port_id': '1'}, {'port_id': '2'}]
         resp = agent_base.build_prov_requests(devs, ports)
         self.assertEqual(2, len(resp))
