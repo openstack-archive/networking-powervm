@@ -98,8 +98,10 @@ class TestAgentBase(base.BasePVMTestCase):
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'build_prov_requests')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
+                'BasePVMNeutronAgent.update_device_down')
+    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.provision_devices')
-    def test_attempt_provision_failure(self, mock_provision,
+    def test_attempt_provision_failure(self, mock_provision, mock_dev_down,
                                        mock_build_prov_requests):
         """Tests a failed 'attempt_provision' invocation."""
         agent = self.build_test_agent()
@@ -120,8 +122,7 @@ class TestAgentBase(base.BasePVMTestCase):
 
         # Validate the provision was invoked, but failed.
         mock_provision.assert_called_with(net_devs)
-        for net_dev in net_devs:
-            self.assertTrue(net_dev.mark_down.called)
+        self.assertEqual(3, mock_dev_down.call_count)
 
     def test_build_prov_requests(self):
         # Do a base check
