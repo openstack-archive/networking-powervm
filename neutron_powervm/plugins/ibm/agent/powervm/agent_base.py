@@ -135,6 +135,11 @@ def build_prov_requests(devices, ports):
         if port_uuid is None:
             continue
 
+        # Make sure the binding host matches this agent.  Otherwise it is meant
+        # to provision on another agent.
+        if port.get('binding:host_id') != cfg.CONF.host:
+            continue
+
         for dev in devices:
             # If the device's id (really the port uuid) doesn't match, ignore
             # it.

@@ -16,6 +16,7 @@
 
 import mock
 
+from oslo_config import cfg
 from pypowervm.tests import test_fixtures as pvm_fx
 
 from neutron_powervm.plugins.ibm.agent.powervm import agent_base
@@ -127,8 +128,17 @@ class TestAgentBase(base.BasePVMTestCase):
         # Do a base check
         self.assertEqual([], agent_base.build_prov_requests([], []))
 
+        cfg.CONF.set_override('host', 'fake_host')
+
+        def build_port(pid, use_good_host=True):
+            if use_good_host:
+                return {'id': pid, 'binding:host_id': 'fake_host'}
+            else:
+                return {'id': pid, 'binding:host_id': 'bad_fake_host'}
+
         # Only 2 should be created
-        ports = [{'id': '1'}, {}, {'id': '2'}]
+        ports = [build_port('1'), {}, build_port('2'),
+                 build_port('4', use_good_host=False)]
         devs = [{'port_id': '3'}, {}, {'port_id': '1'}, {'port_id': '2'}]
         resp = agent_base.build_prov_requests(devs, ports)
         self.assertEqual(2, len(resp))
