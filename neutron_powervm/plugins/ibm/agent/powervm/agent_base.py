@@ -366,7 +366,7 @@ class BasePVMNeutronAgent(object):
         except Exception:
             # Set the state of the device as 'down'
             for p_req in provision_requests:
-                p_req.mark_down()
+                self.update_device_down(p_req.rpc_device)
 
             # Reraise the exception
             raise
