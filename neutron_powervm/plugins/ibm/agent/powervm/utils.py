@@ -224,7 +224,7 @@ def get_vswitch_map(adapter, host_uuid):
     vswitches = pvm_net.VSwitch.wrap(vsw_feed)
     resp = {}
     for vswitch in vswitches:
-        resp[vswitch.switch_id] = vswitch.href
+        resp[vswitch.switch_id] = vswitch.related_href
     return resp
 
 
