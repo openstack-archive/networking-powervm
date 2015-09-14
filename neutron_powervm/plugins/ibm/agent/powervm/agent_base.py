@@ -28,7 +28,7 @@ from neutron.agent import rpc as agent_rpc
 from neutron.common import constants as q_const
 from neutron.common import topics
 from neutron import context as ctx
-from neutron.i18n import _, _LW, _LE
+from neutron.i18n import _, _LW
 from pypowervm import adapter as pvm_adpt
 from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp
@@ -43,6 +43,9 @@ LOG = logging.getLogger(__name__)
 
 
 agent_opts = [
+    cfg.IntOpt('exception_interval', default=5,
+               help=_("The number of seconds agent will wait between "
+                      "polling when exception is caught")),
     cfg.IntOpt('polling_interval', default=2,
                help=_("The number of seconds the agent will wait between "
                       "polling for local device changes.")),
@@ -293,7 +296,6 @@ class BasePVMNeutronAgent(object):
         loop_timer = float(0)
         loop_interval = float(ACONF.heal_and_optimize_interval)
         first_loop = True
-        succesive_exceptions = 0
 
         while True:
             try:
@@ -317,29 +319,12 @@ class BasePVMNeutronAgent(object):
                 # Provision the ports on the Network Bridge.
                 self.attempt_provision(u_ports)
 
-                # If the code reached this point, the successive exceptions
-                # can be reset to 0.
-                succesive_exceptions = 0
             except Exception as e:
-                # The agent should retry a few times, in case something
-                # bubbled up.  A successful provision loop will reset the
-                # timer.
-                #
-                # Note that the exception timer is not reset if there are no
-                # provisions.  That is because 99% of the errors will occur
-                # in the provision path.  So we only reset the error when
-                # a successful provision has occurred (otherwise we'd never
-                # hit the exception limit).
-                succesive_exceptions += 1
                 LOG.exception(e)
-                if succesive_exceptions == 3:
-                    LOG.error(_LE("Multiple exceptions have been "
-                                  "encountered.  The agent is unable to "
-                                  "proceed.  Exiting."))
-                    raise
-                else:
-                    LOG.warn(_LW("Error has been encountered and logged.  The "
+                LOG.warn(_LW("Error has been encountered and logged.  The "
                              "agent will retry again."))
+                # sleep for a while and re-loop
+                time.sleep(ACONF.exception_interval)
 
     def attempt_provision(self, ports):
         """Attempts the provisioning of the updated ports.

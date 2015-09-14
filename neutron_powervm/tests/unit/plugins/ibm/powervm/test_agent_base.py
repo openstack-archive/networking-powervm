@@ -54,26 +54,6 @@ class TestAgentBase(base.BasePVMTestCase):
         return agent
 
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.heal_and_optimize')
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.attempt_provision')
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent._list_updated_ports')
-    def test_rpc_loop(self, mock_list_ports, mock_provision, mock_heal):
-        agent = self.build_test_agent()
-
-        mock_list_ports.side_effect = [['a'], ['b', 'c'], ['d'], ['e'],
-                                       ['f'], ['g'], ['h']]
-        mock_provision.side_effect = [None, FakeExc(), FakeExc(), None,
-                                      FakeExc(), FakeExc(), FakeExc()]
-
-        # Call the loop.  The last three failures should be where it dies out.
-        self.assertRaises(FakeExc, agent.rpc_loop)
-
-        # 7 calls total.
-        self.assertEqual(7, mock_provision.call_count)
-
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'build_prov_requests')
     @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.provision_devices')
