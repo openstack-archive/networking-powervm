@@ -19,13 +19,16 @@ import eventlet
 eventlet.monkey_patch()
 import time
 
+from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log as logging
 
 from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
 from neutron.i18n import _LW, _LE, _LI
+from pypowervm import adapter as pvm_adpt
 from pypowervm.tasks import network_bridger as net_br
+from pypowervm import util as pvm_util
 
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
 from networking_powervm.plugins.ibm.agent.powervm import constants as p_const
@@ -45,7 +48,7 @@ agent_opts = [
                     'Shared Ethernet Adapters.'
                     'Format: <ph_net1>:<sea1>:<vio1>,<ph_net2>:<sea2>:<vio2> '
                     'Example: default:ent5:vios_1,speedy:ent6:vios_1'),
-    cfg.IntOpt('pvid_update_loops', default=1800,
+    cfg.IntOpt('pvid_update_loops', default=180,
                help='The Port VLAN ID (PVID) of the Client VM\'s Network '
                     'Interface is updated by this agent.  There is a delay '
                     'from Nova between when the Neutron Port is assigned '
@@ -65,11 +68,91 @@ a_config.register_root_helper(cfg.CONF)
 ACONF = cfg.CONF.AGENT
 
 
+class CNAEventHandler(pvm_adpt.EventHandler):
+    """Listens for Events from the PowerVM API that could be network events.
+
+    This event handler will be invoked by the PowerVM API when something occurs
+    on the system.  This event handler will determine if it could have been
+    related to a network change.  If so, then it will add a ProvisionRequest
+    to the processing queue.
+    """
+
+    def __init__(self, agent):
+        self.agent = agent
+        self.adapter = self.agent.adapter
+        self.host_uuid = self.agent.host_uuid
+        self.prov_req_queue = []
+
+    @lockutils.synchronized('cna_request_queue')
+    def process(self, events):
+        for uri, action in events.items():
+            if action in ['add', 'invalidate']:
+                self.prov_req_queue.extend(self._prov_reqs_for_uri(uri))
+
+    def _prov_reqs_for_uri(self, uri):
+        """Returns set of ProvisionRequests for a URI.
+
+        When the API indicates that a URI is invalid, it will return a
+        List of ProvisionRequests for a given URI.  If the URI is not valid
+        for a ClientNetworkAdapter (CNA) then an empty list will be returned.
+        """
+        try:
+            if not pvm_util.is_instance_path(uri):
+                return []
+        except Exception:
+            LOG.warn(_LW('Unable to parse URI %s for provision request '
+                         'assessment.'), uri)
+            return []
+
+        # The event queue will only return URI's for 'root like' objects.
+        # This is essentially just the LogicalPartition, you can't get the
+        # ClientNetworkAdapter.  So if we find an add/invalidate for the
+        # LogicalPartition, we'll get all the CNAs.
+        #
+        # This check will throw out everything that doesn't include the
+        # LogicalPartition's
+        uuid = pvm_util.get_req_path_uuid(uri, preserve_case=True)
+        if not uri.endswith('LogicalPartition/' + uuid):
+            return []
+
+        # For the LPAR, get the CNAs.
+        cna_wraps = utils.list_cnas(self.adapter, self.host_uuid, uuid)
+        resp = []
+        for cna_w in cna_wraps:
+            # Build a provision request for each type
+            device_mac = utils.norm_mac(cna_w.mac)
+            device_detail = self.agent.get_device_details(device_mac)
+
+            # A device detail will always come back...even if neutron has
+            # no idea what the port is.  This WILL happen for PowerVM, maybe
+            # an event for the mgmt partition or the secure RMC VIF.  We can
+            # detect if Neutron has full device details by simply querying for
+            # the mac from the device_detail
+            if not device_detail.get('mac_address'):
+                continue
+
+            # Must be good!
+            resp.append(agent_base.ProvisionRequest(device_detail, uuid))
+        return resp
+
+    @lockutils.synchronized('cna_request_queue')
+    def get_queue(self):
+        resp = copy.copy(self.prov_req_queue)
+        self.prov_req_queue = []
+        return resp
+
+
 class UpdateVLANRequest(object):
     """Used for the async update of the PVIDs on ports."""
 
-    def __init__(self, details):
-        self.details = details
+    def __init__(self, p_req):
+        """Creates a request to update the VLAN.
+
+        :param p_req: The backing ProvisionRequest which provides details
+                      about which client LPAR and Network Adapter to update
+                      the VLAN on.
+        """
+        self.p_req = p_req
         self.attempt_count = 0
 
 
@@ -118,7 +201,7 @@ class PVIDLooper(object):
                  was not able to process.
         """
         # Pull the ProvisionRequest off the VLAN Update call.
-        p_req = request.details
+        p_req = request.p_req
         client_adpts = []
 
         try:
@@ -128,13 +211,13 @@ class PVIDLooper(object):
                                                lpar_uuid=p_req.lpar_uuid)
                 cna = utils.find_cna_for_mac(p_req.mac_address, client_adpts)
                 if cna:
-                    # Found the adapter!  Update the PVID and inform Neutron of
-                    # the device now being fully online.
-                    utils.update_cna_pvid(cna, p_req.segmentation_id)
-                    LOG.debug("Sending update device for %s" %
-                              p_req.mac_address)
+                    # If the PVID does not match, update the CNA.
+                    if cna.pvid != p_req.segmentation_id:
+                        utils.update_cna_pvid(cna, p_req.segmentation_id)
+                    LOG.info(_LI("Sending update device for %s"),
+                             p_req.mac_address)
                     self.agent.update_device_up(p_req.rpc_device)
-                    self.requests.remove(request)
+                    self._remove_request(request)
                     return
 
         except Exception as e:
@@ -150,14 +233,13 @@ class PVIDLooper(object):
                 self._mark_failed(p_req, client_adpts)
 
             # Remove the request from the overall queue
-            self.requests.remove(request)
+            self._remove_request(request)
 
     def _mark_failed(self, p_req, client_adpts):
         """Marks a provision request as failed."""
         LOG.error(_LE("Unable to update PVID to %(pvid)s for MAC Address "
                       "%(mac)s as there was no valid network adapter found."),
-                  {'pvid': p_req.segmentation_id,
-                   'mac': p_req.mac_address})
+                  {'pvid': p_req.segmentation_id, 'mac': p_req.mac_address})
 
         # Log additionally the adapters (if any) that were found for the
         # client LPAR.
@@ -183,20 +265,40 @@ class PVIDLooper(object):
             # Sleep for a second.
             time.sleep(1)
 
+    @lockutils.synchronized('pvid_looper_req')
+    def _remove_request(self, request):
+        self.requests.remove(request)
+
+    @lockutils.synchronized('pvid_looper_req')
     def add(self, request):
         """Adds a new request to the looper utility.
 
         :param request: A UpdateVLANRequest.
         """
-        self.requests.append(request)
+        # The request may already be on the system.  This can happen due to the
+        # CNAEventHandler...it may have been invoked a few times from LPAR
+        # invalidates...thus making it appear like the request came through
+        # a few times.
+        #
+        # We should look at the existing queue, and only add to it if we do
+        # not have one with a similar to it.
+        contains = False
+        for existing_req in self.requests:
+            if existing_req.p_req == request.p_req:
+                contains = True
+                break
+
+        if not contains:
+            self.requests.append(request)
 
     @property
+    @lockutils.synchronized('pvid_looper_req')
     def pending_vlans(self):
         """Returns the set of pending VLAN updates.
 
         :return: Set of unique VLAN ids from within the pending requests.
         """
-        return {x.details.segmentation_id for x in self.requests}
+        return {x.p_req.segmentation_id for x in self.requests}
 
 
 class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
@@ -220,6 +322,23 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         self.pvid_updater = PVIDLooper(self)
         eventlet.spawn_n(self.pvid_updater.looping_call)
 
+        # Add an event handler to the session.
+        evt_listener = self.adapter.session.get_event_listener()
+        self._cna_event_handler = CNAEventHandler(self)
+        evt_listener.subscribe(self._cna_event_handler)
+
+    def build_prov_requests_from_server(self):
+        """Builds provisioning requests from the server.
+
+        The server may detect that a new port has been built on its system.
+        This method provides the agent implementations to detect this, and
+        return a ProvisionRequest object that will be passed into the
+        attempt_provision method.
+
+        This method is not required to be implemented by agent implementations.
+        """
+        return self._cna_event_handler.get_queue()
+
     def heal_and_optimize(self, is_boot):
         """Heals the system's network bridges and optimizes.
 
@@ -237,7 +356,6 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         :param is_boot: Indicates if this is the first call on boot up of the
                         agent.
         """
-
         # List all our clients
         client_adpts = utils.list_cnas(self.adapter, self.host_uuid)
 
@@ -245,9 +363,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         # we pass in all of the macs on the system.  For VMs that neutron does
         # not know about, we get back an empty structure with just the mac.
         client_macs = [utils.norm_mac(x.mac) for x in client_adpts]
-        devs = self.plugin_rpc.get_devices_details_list(self.context,
-                                                        client_macs,
-                                                        self.agent_id)
+        devs = self.get_devices_details_list(client_macs)
 
         # Dictionary of the required VLANs on the Network Bridge
         nb_req_vlans = {}

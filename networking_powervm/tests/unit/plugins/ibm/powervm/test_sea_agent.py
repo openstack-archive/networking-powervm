@@ -18,6 +18,7 @@ from oslo_config import cfg
 
 import mock
 
+from networking_powervm.plugins.ibm.agent.powervm import agent_base
 from networking_powervm.plugins.ibm.agent.powervm import sea_agent
 from networking_powervm.tests.unit.plugins.ibm.powervm import base
 from pypowervm.tests import test_fixtures as pvm_fx
@@ -96,8 +97,8 @@ class SEAAgentTest(base.BasePVMTestCase):
         """
         self.assertEqual(0, len(self.agent._list_updated_ports()))
 
-        self.agent._update_port(1)
-        self.agent._update_port(2)
+        self.agent._update_port({'mac_address': 'aa'})
+        self.agent._update_port({'mac_address': 'bb'})
 
         self.assertEqual(2, len(self.agent._list_updated_ports()))
 
@@ -247,11 +248,36 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.mock_agent = mock.MagicMock()
         self.looper = sea_agent.PVIDLooper(self.mock_agent)
 
+    def build_update_req(self, mac, lpar, vlan):
+        dev = {'mac_address': mac, 'physical_network': 'default',
+               'segmentation_id': vlan, 'device_owner': 'nova:compute'}
+        preq = agent_base.ProvisionRequest(dev, lpar)
+        return sea_agent.UpdateVLANRequest(preq)
+
     def test_add(self):
         req = sea_agent.UpdateVLANRequest(mock.MagicMock())
         self.assertEqual(0, len(self.looper.requests))
         self.looper.add(req)
         self.assertEqual(1, len(self.looper.requests))
+
+    def test_add_with_duplicate(self):
+        # Add a baseline request
+        self.looper.add(self.build_update_req('aa', '1', 1))
+        self.assertEqual(1, len(self.looper.requests))
+
+        # Add a second request.  Same LPAR, different mac and vlan
+        self.looper.add(self.build_update_req('bb', '1', 2))
+        self.assertEqual(2, len(self.looper.requests))
+
+        # Add a third request.  Different LPAR and VLAN, same mac. (VERY RARE,
+        # maybe not possible in Neutron).
+        self.looper.add(self.build_update_req('aa', '2', 1))
+        self.assertEqual(3, len(self.looper.requests))
+
+        # Add some duplicates.  Same mac and lpar.
+        self.looper.add(self.build_update_req('aa', '1', 1))
+        self.looper.add(self.build_update_req('bb', '1', 2))
+        self.assertEqual(3, len(self.looper.requests))
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_lpar_uuids')
@@ -334,3 +360,59 @@ class PVIDLooperTest(base.BasePVMTestCase):
 
         self.assertTrue(self.mock_agent.update_device_down.called)
         self.assertFalse(self.mock_agent.update_device_up.called)
+
+
+class CNAEventHandlerTest(base.BasePVMTestCase):
+    """Validates that the CNAEventHandler can be invoked properly."""
+
+    def setUp(self):
+        super(CNAEventHandlerTest, self).setUp()
+
+        self.mock_agent = mock.MagicMock()
+        self.handler = sea_agent.CNAEventHandler(self.mock_agent)
+
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.sea_agent.'
+                'CNAEventHandler._prov_reqs_for_uri')
+    def test_process(self, mock_prov):
+        events = {'URI1': 'add', 'URI2': 'delete', 'URI3': 'invalidate'}
+        self.handler.process(events)
+
+        # URI2 shouldn't be invoked.
+        self.assertEqual(2, mock_prov.call_count)
+        mock_prov.assert_any_call('URI1')
+        mock_prov.assert_any_call('URI3')
+
+    def test_prov_reqs_for_uri_not_lpar(self):
+        """Ensures that anything but a LogicalPartition returns empty."""
+        vio_uri = ('https://9.1.2.3:12443/rest/api/uom/ManagedSystem/'
+                   'c5d782c7-44e4-3086-ad15-b16fb039d63b/VirtualIOServer/'
+                   '3443DB77-AED1-47ED-9AA5-3DB9C6CF7089')
+        self.assertEqual([], self.handler._prov_reqs_for_uri(vio_uri))
+
+        ms_uri = ('https://9.1.2.3:12443/rest/api/uom/ManagedSystem/'
+                  'c5d782c7-44e4-3086-ad15-b16fb039d63b')
+        self.assertEqual([], self.handler._prov_reqs_for_uri(ms_uri))
+
+        bad_uri = ('https://9.1.2.3')
+        self.assertEqual([], self.handler._prov_reqs_for_uri(bad_uri))
+
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.list_cnas')
+    def test_prov_reqs_for_uri(self, mock_list_cnas):
+        """Happy path testing of prov_reqs_for_uri."""
+        lpar_uri = ('https://9.1.2.3:12443/rest/api/uom/ManagedSystem/'
+                    'c5d782c7-44e4-3086-ad15-b16fb039d63b/LogicalPartition/'
+                    '3443DB77-AED1-47ED-9AA5-3DB9C6CF7089')
+
+        cna1 = mock.MagicMock(mac='aabbccddeeff')
+        cna2 = mock.MagicMock(mac='aabbccddee11')
+        mock_list_cnas.return_value = [cna1, cna2]
+
+        resp = self.handler._prov_reqs_for_uri(lpar_uri)
+
+        self.assertEqual(2, len(resp))
+        for p_req in resp:
+            self.assertIsInstance(p_req, agent_base.ProvisionRequest)
+
+        # Called the correct macs with the CNA.
+        self.mock_agent.get_device_details.assert_any_call('aa:bb:cc:dd:ee:ff')
+        self.mock_agent.get_device_details.assert_any_call('aa:bb:cc:dd:ee:11')

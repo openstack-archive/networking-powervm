@@ -28,7 +28,7 @@ from neutron.agent import rpc as agent_rpc
 from neutron.common import constants as q_const
 from neutron.common import topics
 from neutron import context as ctx
-from neutron.i18n import _, _LW
+from neutron.i18n import _, _LW, _LI
 from pypowervm import adapter as pvm_adpt
 from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp
@@ -110,49 +110,30 @@ class ProvisionRequest(object):
     aspects into a single element.
     """
 
-    def __init__(self, device_detail, port):
+    def __init__(self, device_detail, lpar_uuid):
         self.segmentation_id = device_detail.get('segmentation_id')
         self.physical_network = device_detail.get('physical_network')
         self.mac_address = device_detail.get('mac_address')
         self.device_owner = device_detail.get('device_owner')
         self.rpc_device = device_detail
-        self.device_id = port.get('device_id') if port else None
-        self.lpar_uuid = (pvm_uuid.convert_uuid_to_pvm(self.device_id).upper()
-                          if self.device_id else None)
+        self.lpar_uuid = lpar_uuid
 
+    def __eq__(self, other):
+        if not isinstance(other, ProvisionRequest):
+            return False
 
-def build_prov_requests(devices, ports):
-    """Builds the list of ProvisionRequest objects.
+        # Really just need to check the lpar_uuid and mac.  The rest should
+        # be static and identical.
+        return (other.mac_address == self.mac_address and
+                other.lpar_uuid == self.lpar_uuid)
 
-    :param devices: The corresponding neutron device details.  Has some unique
-                    info like segmentation_id and physical_network.
-    :param ports: The 'Neutron Ports'
-    :return: A list of the ProvisionRequest objects, which mesh together the
-             Port and Device data.
-    """
-    resp = []
-    for port in ports:
-        port_uuid = port.get('id')
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
-        # Make sure we have a UUID
-        if port_uuid is None:
-            continue
-
-        # Make sure the binding host matches this agent.  Otherwise it is meant
-        # to provision on another agent.
-        if port.get('binding:host_id') != cfg.CONF.host:
-            continue
-
-        for dev in devices:
-            # If the device's id (really the port uuid) doesn't match, ignore
-            # it.
-            dev_pid = dev.get('port_id')
-            if dev_pid is None or port_uuid != dev_pid:
-                continue
-
-            # Valid request.  Add it
-            resp.append(ProvisionRequest(dev, port))
-    return resp
+    def __hash__(self):
+        # Mac addresses should not collide.  This should be sufficient for a
+        # hash.  The equals will go just a bit further.
+        return hash(self.mac_address)
 
 
 class BasePVMNeutronAgent(object):
@@ -240,8 +221,30 @@ class BasePVMNeutronAgent(object):
         self.plugin_rpc.update_device_down(self.context, device['device'],
                                            self.agent_id, cfg.CONF.host)
 
+    def get_device_details(self, device_mac):
+        """Returns a neutron device for a given mac address.
+
+        :param device_mac: The neutron mac addresses for the device to get.
+        :return: The device from neutron.
+        """
+        return self.plugin_rpc.get_device_details(self.context, device_mac,
+                                                  self.agent_id)
+
+    def get_devices_details_list(self, device_macs):
+        """Returns list of neutron devices for a list of mac addresses.
+
+        :param device_macs: List of neutron mac addresses for the devices to
+                            get.
+        :return: The list of devices from neutron.
+        """
+        return self.plugin_rpc.get_devices_details_list(
+            self.context, device_macs, self.agent_id)
+
     def _update_port(self, port):
         """Invoked to indicate that a port has been updated within Neutron."""
+        LOG.info(_LI('Neutron API indicated port update for %(mac)s.  '
+                     'Checking if hosted by this system.'),
+                 {'mac': port.get('mac_address')})
         self.updated_ports.append(port)
 
     def _list_updated_ports(self):
@@ -306,18 +309,27 @@ class BasePVMNeutronAgent(object):
                     first_loop = False
                     loop_timer = time.time()
 
-                # Determine if there are new ports
-                u_ports = self._list_updated_ports()
+                # Determine if there are new ports requested from neutron
+                n_prov_reqs = self.build_prov_requests_from_neutron()
+
+                # Get provision requests from the server
+                s_prov_reqs = self.build_prov_requests_from_server()
+
+                # Get all of the provision requests, but remove any duplicates.
+                # A duplicate could occur if the server and neutron both threw
+                # the same port request.
+                tot_prov_reqs = n_prov_reqs + s_prov_reqs
+                tot_prov_reqs = list(set(tot_prov_reqs))
 
                 # If there are no updated ports, just sleep and re-loop
-                if not u_ports:
+                if not tot_prov_reqs:
                     LOG.debug("No changes, sleeping %d seconds.",
                               ACONF.polling_interval)
                     time.sleep(ACONF.polling_interval)
                     continue
 
                 # Provision the ports on the Network Bridge.
-                self.attempt_provision(u_ports)
+                self.attempt_provision(tot_prov_reqs)
 
             except Exception as e:
                 LOG.exception(e)
@@ -326,31 +338,75 @@ class BasePVMNeutronAgent(object):
                 # sleep for a while and re-loop
                 time.sleep(ACONF.exception_interval)
 
-    def attempt_provision(self, ports):
-        """Attempts the provisioning of the updated ports.
+    def build_prov_requests_from_neutron(self):
+        """Builds the provisioning requests from the Neutron Server.
+
+        The Neutron Server may have updated ports.  These port requests will
+        be sent down to the agent as a ProvisionRequest.
+
+        :return: A list of the ProvisionRequests that have come from Neutron.
+        """
+        # Convert the ports to devices.
+        u_ports = self._list_updated_ports()
+        dev_list = [x.get('mac_address') for x in u_ports]
+        devices = self.get_devices_details_list(dev_list)
+
+        # Build the network devices
+        resp = []
+        for port in u_ports:
+            port_uuid = port.get('id')
+
+            # Make sure we have a UUID
+            if port_uuid is None:
+                continue
+
+            # Make sure the binding host matches this agent.  Otherwise it is
+            # meant to provision on another agent.
+            if port.get('binding:host_id') != cfg.CONF.host:
+                continue
+
+            for dev in devices:
+                # If the device's id (really the port uuid) doesn't match,
+                # ignore it.
+                dev_pid = dev.get('port_id')
+                if dev_pid is None or port_uuid != dev_pid:
+                    continue
+
+                # Valid request.  Add it
+                device_id = port.get('device_id')
+                lpar_uuid = pvm_uuid.convert_uuid_to_pvm(device_id).upper()
+                resp.append(ProvisionRequest(dev, lpar_uuid))
+        return resp
+
+    def build_prov_requests_from_server(self):
+        """Builds provisioning requests from the server.
+
+        The server may detect that a new port has been built on its system.
+        This method provides the agent implementations to detect this, and
+        return a ProvisionRequest object that will be passed into the
+        attempt_provision method.
+
+        This method is not required to be implemented by agent implementations.
+        """
+        pass
+
+    def attempt_provision(self, provision_reqs):
+        """Attempts the provisioning of ports.
 
         This method will attempt to provision a set of ports (by wrapping
         around the provision_ports method).  If there are issues with
         provisioning the ports, this method will update the status in the
         backing Neutron server.
 
-        :param ports: The list of ports to provision.
+        :param provision_reqs: The list of ports to provision.
         """
-        # Convert the ports to devices.
-        dev_list = [x.get('mac_address') for x in ports]
-        devs = self.plugin_rpc.get_devices_details_list(
-            self.context, dev_list, self.agent_id)
-
-        # Build the network devices
-        provision_requests = build_prov_requests(devs, ports)
-
         try:
             LOG.debug("Provisioning ports for mac addresses [ %s ]" %
-                      ' '.join(dev_list))
-            self.provision_devices(provision_requests)
+                      ' '.join([x.mac_address for x in provision_reqs]))
+            self.provision_devices(provision_reqs)
         except Exception:
             # Set the state of the device as 'down'
-            for p_req in provision_requests:
+            for p_req in provision_reqs:
                 self.update_device_down(p_req.rpc_device)
 
             # Reraise the exception

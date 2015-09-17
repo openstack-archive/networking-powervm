@@ -34,9 +34,6 @@ def FakeNPort(mac, segment_id, phys_network):
 
 class TestAgentBase(base.BasePVMTestCase):
 
-    def setUp(self):
-        super(TestAgentBase, self).setUp()
-
     def build_test_agent(self):
         """Builds a simple test agent."""
         self.adpt = self.useFixture(
@@ -54,36 +51,25 @@ class TestAgentBase(base.BasePVMTestCase):
         return agent
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'build_prov_requests')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.provision_devices')
-    def test_attempt_provision(self, mock_provision,
-                               mock_build_prov_requests):
+    def test_attempt_provision(self, mock_provision):
         """Tests a successful 'attempt_provision' invocation."""
         agent = self.build_test_agent()
-
-        devs = [mock.Mock(), mock.Mock(), mock.Mock()]
-        agent.plugin_rpc.get_devices_details_list.return_value = devs
-        mock_build_prov_requests.return_value = devs
+        provision_reqs = [mock.Mock(rpc_device='a', mac_address='a'),
+                          mock.Mock(rpc_device='b', mac_address='b'),
+                          mock.Mock(rpc_device='c', mac_address='c')]
 
         # Invoke the test method.
-        agent.attempt_provision([FakeNPort('a', 1, 'default'),
-                                 FakeNPort('b', 1, 'default'),
-                                 FakeNPort('c', 1, 'default')])
+        agent.attempt_provision(provision_reqs)
 
         # Validate the provision was invoked.
-        mock_provision.assert_called_with(devs)
-        for net_dev in devs:
-            self.assertFalse(net_dev.called)
+        mock_provision.assert_called_with(provision_reqs)
 
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'build_prov_requests')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.update_device_down')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.provision_devices')
-    def test_attempt_provision_failure(self, mock_provision, mock_dev_down,
-                                       mock_build_prov_requests):
+    def test_attempt_provision_failure(self, mock_provision, mock_dev_down):
         """Tests a failed 'attempt_provision' invocation."""
         agent = self.build_test_agent()
 
@@ -92,22 +78,26 @@ class TestAgentBase(base.BasePVMTestCase):
 
         # Trigger some failure
         mock_provision.side_effect = FakeExc()
-        net_devs = [mock.Mock(), mock.Mock(), mock.Mock()]
-        mock_build_prov_requests.return_value = net_devs
+        provision_reqs = [mock.Mock(rpc_device='a', mac_address='a'),
+                          mock.Mock(rpc_device='b', mac_address='b'),
+                          mock.Mock(rpc_device='c', mac_address='c')]
 
         # Invoke the test method.
-        self.assertRaises(FakeExc, agent.attempt_provision,
-                          [FakeNPort('a', 1, 'default'),
-                           FakeNPort('b', 1, 'default'),
-                           FakeNPort('c', 1, 'default')])
+        self.assertRaises(FakeExc, agent.attempt_provision, provision_reqs)
 
         # Validate the provision was invoked, but failed.
-        mock_provision.assert_called_with(net_devs)
+        mock_provision.assert_called_with(provision_reqs)
         self.assertEqual(3, mock_dev_down.call_count)
 
-    def test_build_prov_requests(self):
+    @mock.patch('pypowervm.utils.uuid.convert_uuid_to_pvm')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
+                'BasePVMNeutronAgent._list_updated_ports')
+    def test_build_prov_requests_from_neutron(self, mock_list_uports,
+                                              mock_pvid_convert):
         # Do a base check
-        self.assertEqual([], agent_base.build_prov_requests([], []))
+        agent = self.build_test_agent()
+        mock_list_uports.return_value = []
+        self.assertEqual([], agent.build_prov_requests_from_neutron())
 
         cfg.CONF.set_override('host', 'fake_host')
 
@@ -118,8 +108,34 @@ class TestAgentBase(base.BasePVMTestCase):
                 return {'id': pid, 'binding:host_id': 'bad_fake_host'}
 
         # Only 2 should be created
-        ports = [build_port('1'), {}, build_port('2'),
-                 build_port('4', use_good_host=False)]
+        mock_list_uports.return_value = [build_port('1'), {}, build_port('2'),
+                                         build_port('4', use_good_host=False)]
         devs = [{'port_id': '3'}, {}, {'port_id': '1'}, {'port_id': '2'}]
-        resp = agent_base.build_prov_requests(devs, ports)
+        agent.plugin_rpc.get_devices_details_list.return_value = devs
+
+        resp = agent.build_prov_requests_from_neutron()
         self.assertEqual(2, len(resp))
+
+
+class TestProvisionRequest(base.BasePVMTestCase):
+
+    def build_dev(self, segmentation_id, mac):
+        return {'segmentation_id': segmentation_id, 'mac_address': mac,
+                'physical_network': 'default', 'device_owner': 'nova:compute'}
+
+    def build_preq(self, segmentation_id, mac):
+        return agent_base.ProvisionRequest(
+            self.build_dev(segmentation_id, mac), '1')
+
+    def test_duplicate_removal(self):
+        reqs = [self.build_preq(1, 'a'), self.build_preq(1, 'a'),
+                self.build_preq(1, 'b'), self.build_preq(1, 'b'),
+                self.build_preq(2, 'c'), self.build_preq(3, 'd')]
+        reqs = list(set(reqs))
+
+        # Make sure that the list is properly reduced.
+        self.assertEqual(4, len(reqs))
+        expected = [self.build_preq(1, 'a'), self.build_preq(1, 'b'),
+                    self.build_preq(2, 'c'), self.build_preq(3, 'd')]
+        for needle in expected:
+            self.assertIn(needle, reqs)
