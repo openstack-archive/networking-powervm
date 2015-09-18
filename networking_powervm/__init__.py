@@ -18,6 +18,6 @@ import six
 
 
 if six.PY2:
-    gettext.install('neutron-powervm', unicode=1)
+    gettext.install('networking-powervm', unicode=1)
 else:
-    gettext.install('neutron-powervm')
+    gettext.install('networking-powervm')

@@ -27,9 +27,9 @@ from neutron.common import config as n_config
 from neutron.i18n import _LW, _LE, _LI
 from pypowervm.tasks import network_bridger as net_br
 
-from neutron_powervm.plugins.ibm.agent.powervm import agent_base
-from neutron_powervm.plugins.ibm.agent.powervm import constants as p_const
-from neutron_powervm.plugins.ibm.agent.powervm import utils
+from networking_powervm.plugins.ibm.agent.powervm import agent_base
+from networking_powervm.plugins.ibm.agent.powervm import constants as p_const
+from networking_powervm.plugins.ibm.agent.powervm import utils
 
 import sys
 
@@ -208,7 +208,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
 
     def __init__(self):
         """Constructs the agent."""
-        name = 'neutron-powervm-sharedethernet-agent'
+        name = 'networking-powervm-sharedethernet-agent'
         agent_type = p_const.AGENT_TYPE_PVM_SEA
         super(SharedEthernetNeutronAgent, self).__init__(name, agent_type)
 

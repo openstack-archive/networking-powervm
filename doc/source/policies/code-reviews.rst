@@ -7,7 +7,7 @@ onboarding of contributions from new contributors.
 
 Code Review Practices
 ---------------------
-Neutron-PowerVM follows the `code review guidelines <https://wiki.openstack.org/wiki/ReviewChecklist>`_ as
+Networking-PowerVM follows the `code review guidelines <https://wiki.openstack.org/wiki/ReviewChecklist>`_ as
 set forth for all OpenStack projects. It is expected that all reviewers are following the guidelines
 set forth on that page.
 

@@ -26,7 +26,7 @@ from pypowervm.wrappers import managed_system as pvm_ms
 from pypowervm.wrappers import network as pvm_net
 from pypowervm.wrappers import virtual_io_server as pvm_vios
 
-from neutron_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
+from networking_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
 
 LOG = logging.getLogger(__name__)
 

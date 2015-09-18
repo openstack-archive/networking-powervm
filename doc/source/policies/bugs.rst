@@ -1,8 +1,8 @@
-Neutron-PowerVM Bugs
-====================
+Networking-PowerVM Bugs
+=======================
 
-Neutron-PowerVM maintains all of its bugs in `Launchpad <https://bugs.launchpad.net/neutron-powervm>`_.
-All of the current open Neutron-PowerVM bugs can be found in that link.
+Networking-PowerVM maintains all of its bugs in `Launchpad <https://bugs.launchpad.net/neutron-powervm>`_.
+All of the current open Networking-PowerVM bugs can be found in that link.
 
 Bug Triage Process
 ------------------

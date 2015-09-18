@@ -18,8 +18,8 @@ Developer Guide
 ===============
 
 In the Developer Guide, you will find information on how to develop for
-Neutron-PowerVM and how it interacts with Neutron. You will also find
-information on setup and usage of Neutron-PowerVM.
+Networking-PowerVM and how it interacts with Neutron. You will also find
+information on setup and usage of Networking-PowerVM.
 
 
 Internals and Programming

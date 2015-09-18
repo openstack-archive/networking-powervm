@@ -16,10 +16,10 @@
 
 import mock
 
-from neutron_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
-from neutron_powervm.plugins.ibm.agent.powervm import utils
+from networking_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
+from networking_powervm.plugins.ibm.agent.powervm import utils
 
-from neutron_powervm.tests.unit.plugins.ibm.powervm import base
+from networking_powervm.tests.unit.plugins.ibm.powervm import base
 
 import os
 
@@ -155,7 +155,7 @@ class UtilsTest(base.BasePVMTestCase):
         resp = utils.find_nb_for_cna(nb_wraps, mock_client_adpt, vswitch_map)
         self.assertIsNone(resp)
 
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 '_list_vm_entries')
     @mock.patch('pypowervm.wrappers.network.CNA.wrap')
     def test_list_cnas(self, mock_cna_wrap, mock_list_vms):
@@ -179,7 +179,7 @@ class UtilsTest(base.BasePVMTestCase):
         cnas = utils.list_cnas(self.adpt, 'host_uuid')
         self.assertEqual(1, len(cnas))
 
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
     def test_parse_sea_mappings(self, mock_list_br):
         nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
@@ -194,7 +194,7 @@ class UtilsTest(base.BasePVMTestCase):
         self.assertEqual('764f3423-04c5-3b96-95a3-4764065400bd',
                          resp['default'])
 
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
     def test_parse_sea_mappings_no_bridges(self, mock_list_br):
         mock_list_br.return_value = []
@@ -202,7 +202,7 @@ class UtilsTest(base.BasePVMTestCase):
         self.assertRaises(np_exc.NoNetworkBridges, utils.parse_sea_mappings,
                           self.adpt, 'host_uuid', '1:2:3')
 
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
     def test_parse_sea_mappings_no_mapping(self, mock_list_br):
         nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
@@ -215,9 +215,9 @@ class UtilsTest(base.BasePVMTestCase):
         self.assertEqual({'default': '764f3423-04c5-3b96-95a3-4764065400bd'},
                          resp)
 
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 '_parse_empty_bridge_mapping')
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.utils.'
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
     def test_parse_call_to_empty_bridge(self, mock_list_br, mock_empty):
         nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)

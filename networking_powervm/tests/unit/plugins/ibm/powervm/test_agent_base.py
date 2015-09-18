@@ -19,8 +19,8 @@ import mock
 from oslo_config import cfg
 from pypowervm.tests import test_fixtures as pvm_fx
 
-from neutron_powervm.plugins.ibm.agent.powervm import agent_base
-from neutron_powervm.tests.unit.plugins.ibm.powervm import base
+from networking_powervm.plugins.ibm.agent.powervm import agent_base
+from networking_powervm.tests.unit.plugins.ibm.powervm import base
 
 
 class FakeExc(Exception):
@@ -42,9 +42,9 @@ class TestAgentBase(base.BasePVMTestCase):
         self.adpt = self.useFixture(
             pvm_fx.AdapterFx(traits=pvm_fx.LocalPVMTraits)).adpt
 
-        with mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
-                        'BasePVMNeutronAgent.setup_adapter'),\
-                mock.patch('neutron_powervm.plugins.ibm.agent.powervm.'
+        with mock.patch('networking_powervm.plugins.ibm.agent.powervm.'
+                        'agent_base.BasePVMNeutronAgent.setup_adapter'),\
+                mock.patch('networking_powervm.plugins.ibm.agent.powervm.'
                            'agent_base.BasePVMNeutronAgent.setup_rpc'):
             agent = agent_base.BasePVMNeutronAgent('binary_name', 'agent_type')
             agent.context = mock.Mock()
@@ -53,9 +53,9 @@ class TestAgentBase(base.BasePVMTestCase):
             agent.adapter = self.adpt
         return agent
 
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'build_prov_requests')
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.provision_devices')
     def test_attempt_provision(self, mock_provision,
                                mock_build_prov_requests):
@@ -76,11 +76,11 @@ class TestAgentBase(base.BasePVMTestCase):
         for net_dev in devs:
             self.assertFalse(net_dev.called)
 
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'build_prov_requests')
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.update_device_down')
-    @mock.patch('neutron_powervm.plugins.ibm.agent.powervm.agent_base.'
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.provision_devices')
     def test_attempt_provision_failure(self, mock_provision, mock_dev_down,
                                        mock_build_prov_requests):

@@ -18,7 +18,7 @@ Setting Up a Development Environment
 ====================================
 
 This page describes how to setup a working Python development
-environment that can be used in developing neutron-powervm.
+environment that can be used in developing networking-powervm.
 
 These instructions assume you're already familiar with
 Git and Gerrit, which is a code repository mirror and code review toolset,
@@ -34,8 +34,8 @@ Getting the code
 
 Grab the code::
 
-    git clone git://git.openstack.org/stackforge/neutron-powervm
-    cd neutron-powervm
+    git clone git://git.openstack.org/openstack/networking-powervm
+    cd networking-powervm
 
 Setting up your environment
 ---------------------------

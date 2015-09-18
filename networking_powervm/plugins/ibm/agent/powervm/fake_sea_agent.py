@@ -32,7 +32,7 @@ from neutron.common import topics
 from neutron import context as ctx
 from neutron.i18n import _, _LE, _LI
 
-from neutron_powervm.plugins.ibm.agent.powervm import constants as p_const
+from networking_powervm.plugins.ibm.agent.powervm import constants as p_const
 
 import sys
 import time
@@ -108,7 +108,7 @@ class FakeSharedEthernetNeutronAgent(object):
         # Define the baseline agent_state that will be reported back for the
         # health status
         self.agent_state = {
-            'binary': 'neutron-powervm-sharedethernet-agent',
+            'binary': 'networking-powervm-sharedethernet-agent',
             'host': cfg.CONF.host,
             'topic': q_const.L2_AGENT_TOPIC,
             'configurations': {},

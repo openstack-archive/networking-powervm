@@ -14,16 +14,16 @@
       License for the specific language governing permissions and limitations
       under the License.
 
-Running Neutron-PowerVM Tests
-=============================
+Running Networking-PowerVM Tests
+================================
 
-This page describes how to run the Neutron-PowerVM tests. This page assumes you
-have already set up an working Python environment for Neutron-PowerVM development.
+This page describes how to run the Networking-PowerVM tests. This page assumes you
+have already set up an working Python environment for Networking-PowerVM development.
 
 With `tox`
 ~~~~~~~~~~
 
-Neutron-PowerVM, like other OpenStack projects, uses `tox`_ for managing the virtual
+Networking-PowerVM, like other OpenStack projects, uses `tox`_ for managing the virtual
 environments for running test cases. It uses `Testr`_ for managing the running
 of the test cases.
 
@@ -47,7 +47,7 @@ PEP8 and Unit Tests
 +++++++++++++++++++
 
 Running pep8 and unit tests is as easy as executing this in the root
-directory of the Neutron-PowerVM source code::
+directory of the Networking-PowerVM source code::
 
     tox
 

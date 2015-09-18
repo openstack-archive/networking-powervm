@@ -19,4 +19,4 @@ Usage
 
 .. todo::
 
-    Add in steps for basic usage of neutron-powervm
+    Add in steps for basic usage of networking-powervm

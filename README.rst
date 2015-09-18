@@ -70,7 +70,7 @@ Virtual I/O Servers.  The scope of this initial blueprint will limit the
 provider network type to VLAN.  The actions against the Virtual I/O Servers
 will be done via the PowerVM REST API stack via a python wrapper.
 
-This agent will be developed in StackForge under the neutron-powervm project.
+This agent will be developed in StackForge under the networking-powervm project.
 Keeping in line with the Neutron team goals, this agent is planned to stay
 independent of Neutron core, but interlock will be done with the Neutron team
 as needed.
@@ -169,9 +169,9 @@ Work Items
 ----------
 
 * Create a PowerVM specific agent package in the
-  /neutron_powervm/plugins/ibm/agent/powervm/ folder.  Stub out the methods.
+  /networking_powervm/plugins/ibm/agent/powervm/ folder.  Stub out the methods.
 
- * Create a PowerVM mechanism driver in /neutron_powervm/ml2/drivers/.
+ * Create a PowerVM mechanism driver in /networking_powervm/ml2/drivers/.
 
 * Create a baseline ini file that provides information needed to bring up the
   agent and map it to provider networks.

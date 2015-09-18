@@ -1,5 +1,5 @@
 INFO{
-{'comment': 'Created for neutron-powervm unit tests', 'status': 200, 'pw': 'abc123', 'reason': 'OK', 'host': '9.1.2.3', 'user': 'hscroot', 'path': 'LogicalPartition'}
+{'comment': 'Created for networking-powervm unit tests', 'status': 200, 'pw': 'abc123', 'reason': 'OK', 'host': '9.1.2.3', 'user': 'hscroot', 'path': 'LogicalPartition'}
 END OF SECTION}
 HEADERS{
 {'x-powered-by': 'Servlet/3.0', 'transfer-encoding': 'chunked', 'set-cookie': 'JSESSIONID=00002EyMEecWDIzdx_K0LwQNiUO:aa95eb5b-d145-4cd8-9030-8b370106cfee; Path=/; HttpOnly', 'expires': 'Thu, 01 Jan 1970 00:00:00 GMT', 'last-modified': 'Fri, 16 Aug 2013 09:49:34 GMT', 'etag': '959374938', 'cache-control': 'no-transform, must-revalidate, proxy-revalidate, no-cache=set-cookie', 'date': 'Fri, 16 Aug 2013 09:49:40 GMT', 'content-type': 'application/atom+xml'}

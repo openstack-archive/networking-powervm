@@ -23,7 +23,7 @@ from neutron.plugins.ml2 import driver_api as api
 from neutron.plugins.ml2.drivers import mech_agent
 from neutron.plugins.ml2 import rpc
 
-from neutron_powervm.plugins.ibm.agent.powervm import constants as pconst
+from networking_powervm.plugins.ibm.agent.powervm import constants as pconst
 
 LOG = log.getLogger(__name__)
 

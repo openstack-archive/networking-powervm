@@ -14,11 +14,11 @@
       License for the specific language governing permissions and limitations
       under the License.
 
-Neutron-PowerVM Policies
-========================
+Networking-PowerVM Policies
+===========================
 
 In the Policies Guide, you will find documented policies for developing with
-Neutron-PowerVM. This includes the processes we use for blueprints and specs,
+Networking-PowerVM. This includes the processes we use for blueprints and specs,
 bugs, contributor onboarding, and other procedural items.
 
 Policies

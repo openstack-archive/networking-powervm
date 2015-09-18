@@ -1,12 +1,12 @@
-Neutron-PowerVM Style Commandments
-==================================
+Networking-PowerVM Style Commandments
+=====================================
 
 - Step 1: Read the OpenStack Style Commandments
   http://docs.openstack.org/developer/hacking/
 - Step 2: Read on
 
-Neutron-PowerVM Specific Commandments
--------------------------------------
+Networking-PowerVM Specific Commandments
+----------------------------------------
 - Follow the Neutron HACKING.rst
 
 Creating Unit Tests

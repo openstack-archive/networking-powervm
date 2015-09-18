@@ -34,7 +34,7 @@ from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp
 from pypowervm.utils import uuid as pvm_uuid
 
-from neutron_powervm.plugins.ibm.agent.powervm import utils
+from networking_powervm.plugins.ibm.agent.powervm import utils
 
 import time
 
