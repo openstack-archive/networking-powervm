@@ -54,7 +54,15 @@ agent_opts = [
                     'until it determines that the port has failed to create '
                     'from Nova.  If no requests are in the system, the loop '
                     'will wait a second before checking again.  If requests '
-                    'are in the system, it may take a bit longer.')
+                    'are in the system, it may take a bit longer.'),
+    cfg.BoolOpt('automated_powervm_vlan_cleanup', default=True,
+                help='Determines whether or not the VLANs will be removed '
+                     'from the Network Bridge if a VM is removed and it is '
+                     'the last VM on the system to use that VLAN.  By '
+                     'default, will clean up VLANs to improve the overall '
+                     'system performance (by reducing broadcast domain).  '
+                     'Will only apply to VLANs not on the primary VEA of the '
+                     'SEA.')
 ]
 
 
@@ -312,24 +320,26 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
             for vlan in vlans:
                 nb_req_vlans[nb.uuid].add(vlan)
 
-        # Loop through and remove VLANs that are no longer needed.
-        for nb in nb_wraps:
-            # Join the required vlans on the network bridge (already in use)
-            # with the pending VLANs.
-            req_vlans = nb_req_vlans[nb.uuid] | pending_vlans
+        # If the configuration is set.
+        if ACONF.automated_powervm_vlan_cleanup:
+            # Loop through and remove VLANs that are no longer needed.
+            for nb in nb_wraps:
+                # Join the required vlans on the network bridge (already in
+                # use) with the pending VLANs.
+                req_vlans = nb_req_vlans[nb.uuid] | pending_vlans
 
-            # Get ALL the VLANs on the bridge
-            existing_vlans = set(nb.list_vlans())
+                # Get ALL the VLANs on the bridge
+                existing_vlans = set(nb.list_vlans())
 
-            # To determine the ones no longer needed, subtract from all the
-            # VLANs the ones that are no longer needed.
-            vlans_to_del = existing_vlans - req_vlans
-            for vlan_to_del in vlans_to_del:
-                LOG.warn(_LW("Cleaning up VLAN %(vlan)s from the system.  "
-                             "It is no longer in use."),
-                         {'vlan': vlan_to_del})
-                net_br.remove_vlan_from_nb(self.adapter, self.host_uuid,
-                                           nb.uuid, vlan_to_del)
+                # To determine the ones no longer needed, subtract from all the
+                # VLANs the ones that are no longer needed.
+                vlans_to_del = existing_vlans - req_vlans
+                for vlan_to_del in vlans_to_del:
+                    LOG.warn(_LW("Cleaning up VLAN %(vlan)s from the system.  "
+                                 "It is no longer in use."),
+                             {'vlan': vlan_to_del})
+                    net_br.remove_vlan_from_nb(self.adapter, self.host_uuid,
+                                               nb.uuid, vlan_to_del)
 
     def provision_devices(self, requests):
         """Will ensure that the VLANs are on the NBs for the edge devices.

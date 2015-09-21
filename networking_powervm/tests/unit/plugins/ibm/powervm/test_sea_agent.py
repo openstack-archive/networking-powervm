@@ -177,9 +177,9 @@ class SEAAgentTest(base.BasePVMTestCase):
                 'list_bridges')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'find_nb_for_cna')
-    def test_heal_and_optimize(self, mock_find_nb_for_cna, mock_list_bridges,
-                               mock_list_cnas, mock_vs_map, mock_nbr_ensure,
-                               mock_nbr_remove):
+    def test_heal_and_optimize(
+            self, mock_find_nb_for_cna, mock_list_bridges, mock_list_cnas,
+            mock_vs_map, mock_nbr_ensure, mock_nbr_remove):
         """Validates the heal and optimization code."""
         # Fake adapters already on system.
         adpts = [FakeClientAdpt('00', 30, []),
@@ -208,9 +208,57 @@ class SEAAgentTest(base.BasePVMTestCase):
         # Invoke
         self.agent.heal_and_optimize(False)
 
-        # Verify
+        # Verify.  One ensure call per net bridge.
         self.assertEqual(3, mock_nbr_remove.call_count)
-        self.assertEqual(2, mock_nbr_ensure.call_count)  # 1 per adapter
+        self.assertEqual(2, mock_nbr_ensure.call_count)
+
+    @mock.patch('pypowervm.tasks.network_bridger.remove_vlan_from_nb')
+    @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
+                'get_vswitch_map')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.list_cnas')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
+                'list_bridges')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
+                'find_nb_for_cna')
+    def test_heal_and_optimize_no_remove(
+            self, mock_find_nb_for_cna, mock_list_bridges, mock_list_cnas,
+            mock_vs_map, mock_nbr_ensure, mock_nbr_remove):
+        """Validates the heal and optimization code. No remove."""
+        # Fake adapters already on system.
+        adpts = [FakeClientAdpt('00', 30, []),
+                 FakeClientAdpt('11', 31, [32, 33, 34])]
+        mock_list_cnas.return_value = adpts
+
+        # The neutron data.  These will be 'ensured' on the bridge.
+        self.agent.plugin_rpc = mock.MagicMock()
+        self.agent.plugin_rpc.get_devices_details_list.return_value = [
+            FakeNPort('00', 20, 'default'), FakeNPort('22', 22, 'default')]
+
+        self.agent.br_map = {'default': 'nb_uuid'}
+
+        # State that there is a pending VLAN (47) that has yet to be applied
+        self.agent.pvid_updater = mock.MagicMock()
+        self.agent.pvid_updater.pending_vlans = {47}
+
+        # Mock up network bridges.  VLANs 44, 45, and 46 should be deleted
+        # as they are not required by anything.  VLAN 47 should be needed
+        # as it is in the pending list.
+        mock_nb1 = FakeNB('nb_uuid', 20, [], [])
+        mock_nb2 = FakeNB('nb2_uuid', 40, [41, 42, 43], [44, 45, 46, 47])
+        mock_list_bridges.return_value = [mock_nb1, mock_nb2]
+        mock_find_nb_for_cna.return_value = mock_nb2
+
+        # Set that we can't do the clean up
+        cfg.CONF.set_override('automated_powervm_vlan_cleanup', False, 'AGENT')
+
+        # Invoke
+        self.agent.heal_and_optimize(False)
+
+        # Verify.  One ensure call per net bridge.  Zero for the remove as that
+        # has been flagged to not clean up.
+        self.assertEqual(0, mock_nbr_remove.call_count)
+        self.assertEqual(2, mock_nbr_ensure.call_count)
 
     @mock.patch('oslo_service.loopingcall.FixedIntervalLoopingCall')
     @mock.patch.object(ctx, 'get_admin_context_without_session',
