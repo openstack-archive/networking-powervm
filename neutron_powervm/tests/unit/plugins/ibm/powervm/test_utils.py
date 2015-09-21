@@ -190,7 +190,7 @@ class UtilsTest(base.BasePVMTestCase):
                                         'default:ent8:21-25D0A')
 
         self.assertEqual(1, len(resp.keys()))
-        self.assertEqual('default', resp.keys()[0])
+        self.assertIn('default', resp)
         self.assertEqual('764f3423-04c5-3b96-95a3-4764065400bd',
                          resp['default'])
 
@@ -265,7 +265,7 @@ class UtilsTest(base.BasePVMTestCase):
         cna = build_mock()
         err_resp = mock.MagicMock()
         err_resp.status = pvm_const.HTTPStatus.ETAG_MISMATCH
-        error = pvm_exc.HttpError('msg', err_resp)
+        error = pvm_exc.HttpError(err_resp)
 
         cna.update.side_effect = [error, error, error]
         self.assertRaises(pvm_exc.HttpError, utils.update_cna_pvid, cna, 5)
@@ -282,7 +282,7 @@ class UtilsTest(base.BasePVMTestCase):
         # Immediate re-raise of different type of exception
         cna = build_mock()
         err_resp.status = pvm_const.HTTPStatus.UNAUTHORIZED
-        cna.update.side_effect = pvm_exc.HttpError('msg', err_resp)
+        cna.update.side_effect = pvm_exc.HttpError(err_resp)
 
         self.assertRaises(pvm_exc.HttpError, utils.update_cna_pvid, cna, 5)
         self.assertEqual(1, cna.update.call_count)
