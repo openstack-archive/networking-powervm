@@ -1,0 +1,69 @@
+# Translations template for networking-powervm.
+# Copyright (C) 2015 ORGANIZATION
+# This file is distributed under the same license as the networking-powervm
+# project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2015.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: networking-powervm 0.0.1.dev86\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2015-09-20 11:45-0400\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.0\n"
+
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:47
+msgid ""
+"The number of seconds agent will wait between polling when exception is "
+"caught"
+msgstr ""
+
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:50
+#: networking_powervm/plugins/ibm/agent/powervm/fake_sea_agent.py:46
+msgid ""
+"The number of seconds the agent will wait between polling for local "
+"device changes."
+msgstr ""
+
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:53
+msgid ""
+"The number of seconds the agent should wait between heal/optimize "
+"intervals.  Should be higher than the polling_interval as it runs in the "
+"nearest polling loop."
+msgstr ""
+
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:231
+msgid "Failed reporting state!"
+msgstr ""
+
+#: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:21
+#, python-format
+msgid "Expected exactly one host; found %(host_count)d"
+msgstr ""
+
+#: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:25
+msgid ""
+"There are no network bridges (ex. Shared Ethernet Adapters) on the "
+"system.  Can not start the Neutron agent."
+msgstr ""
+
+#: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:30
+msgid ""
+"The system has more than one network bridge, but the bridge_mappings have"
+" not been specified.  Please configure the bridge_mappings before "
+"proceeding."
+msgstr ""
+
+#: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:36
+#, python-format
+msgid ""
+"Device %(dev)s on Virtual I/O Server %(vios)s was not found.  Unable to "
+"set up physical network %(phys_net)s."
+msgstr ""
+
