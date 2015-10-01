@@ -18,22 +18,19 @@ import mock
 
 from networking_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
 from networking_powervm.plugins.ibm.agent.powervm import utils
-
 from networking_powervm.tests.unit.plugins.ibm.powervm import base
-
-import os
 
 from pypowervm import const as pvm_const
 from pypowervm import exceptions as pvm_exc
 from pypowervm.tests import test_fixtures as pvm_fx
-from pypowervm.tests.wrappers.util import pvmhttp
+from pypowervm.tests.test_utils import pvmhttp
 from pypowervm.wrappers import network as pvm_net
 
 NET_BR_FILE = 'fake_network_bridge.txt'
 VM_FILE = 'fake_lpar_feed.txt'
 CNA_FILE = 'fake_cna.txt'
 VSW_FILE = 'fake_virtual_switch.txt'
-VIOS_FILE = 'fake_vios_feed.txt'
+VIOS_FILE = 'fake_vios_feed3.txt'
 
 
 class UtilsTest(base.BasePVMTestCase):
@@ -42,17 +39,12 @@ class UtilsTest(base.BasePVMTestCase):
     def setUp(self):
         super(UtilsTest, self).setUp()
 
-        # Find directory for response files
-        data_dir = os.path.dirname(os.path.abspath(__file__))
-        data_dir = os.path.join(data_dir, 'data')
-
         self.adpt = self.useFixture(
             pvm_fx.AdapterFx(traits=pvm_fx.LocalPVMTraits)).adpt
 
         def resp(file_name):
-            file_path = os.path.join(data_dir, file_name)
             return pvmhttp.load_pvm_resp(
-                file_path, adapter=self.adpt).get_response()
+                file_name, adapter=self.adpt).get_response()
 
         self.net_br_resp = resp(NET_BR_FILE)
         self.vm_feed_resp = resp(VM_FILE)
