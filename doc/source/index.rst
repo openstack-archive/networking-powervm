@@ -24,6 +24,16 @@ Documentation on Neutron can be found at the `Neutron Devref`_.
 
 .. _`Neutron Devref`: http://docs.openstack.org/developer/neutron/devref
 
+Networking-PowerVM Overview
+===========================
+
+Contents:
+
+.. toctree::
+    :maxdepth: 1
+
+    readme
+
 Networking-PowerVM Policies
 ===========================
 

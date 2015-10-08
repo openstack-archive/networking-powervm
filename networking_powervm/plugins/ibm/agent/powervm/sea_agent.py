@@ -44,7 +44,7 @@ agent_opts = [
     cfg.StrOpt('bridge_mappings',
                default='',
                help='The Network Bridge mappings (defined by the SEA) that '
-                    'describes how the neutron physical networks map to the '
+                    'describe how the neutron physical networks map to the '
                     'Shared Ethernet Adapters.'
                     'Format: <ph_net1>:<sea1>:<vio1>,<ph_net2>:<sea2>:<vio2> '
                     'Example: default:ent5:vios_1,speedy:ent6:vios_1'),
@@ -64,8 +64,8 @@ agent_opts = [
                      'the last VM on the system to use that VLAN.  By '
                      'default, will clean up VLANs to improve the overall '
                      'system performance (by reducing broadcast domain).  '
-                     'Will only apply to VLANs not on the primary VEA of the '
-                     'SEA.')
+                     'Will only apply to VLANs not on the primary PowerVM '
+                     'virtual Ethernet adapter of the SEA.')
 ]
 
 

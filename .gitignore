@@ -6,3 +6,5 @@ networking_powervm.egg-info/
 .*.swp
 /.idea/
 doc/build
+AUTHORS
+ChangeLog

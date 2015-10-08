@@ -1,90 +1,51 @@
 =========================
 PowerVM Neutron ML2 Agent
 =========================
-Include the URL of your launchpad blueprint:
 
-https://blueprints.launchpad.net/nova/+spec/example
+The `IBM PowerVM hypervisor`_ provides virtualization on POWER hardware.
+PowerVM operators can see benefits in their environments by making use of
+OpenStack. This project implements a ML2 compatible agent that provides
+capability for PowerVM admins to natively use OpenStack Neutron.  This agent is
+tied to the Shared Ethernet Adapter technology which is currently the typical
+scenario for PowerVM network virtualization.
 
-The IBM PowerVM hypervisor provides virtualization on POWER hardware.  PowerVM
-admins can see benefits in their environments by making use of OpenStack.
-This will implement a ML2 compatible agent (along with a Nova driver and
-Ceilometer agent defined in other blueprints) that will provide capability for
-PowerVM admins to natively use OpenStack.  This agent will be tied to the
-Shared Ethernet Adapter technology which is currently the typical scenario for
-PowerVM network virtualization.
+.. _IBM PowerVM hypervisor: http://www.redbooks.ibm.com/abstracts/sg247940.html?Open
 
 
 Problem description
 ===================
 
-This blueprint will provide a ML2 compatible agent for the PowerVM hypervisor.
-It will be paired to the nova-powervm driver that is also being proposed.
+This project provides a ML2 compatible agent for the PowerVM hypervisor.
+It is paired to the `nova-powervm`_ driver.
 
-This PowerVM agent will provide support for VLAN networks across Shared
-Ethernet Adapters.  It will provision the VLANs on the Virtual I/O Servers
+This PowerVM agent provides support for VLAN networks across Shared
+Ethernet Adapters.  It provisions the VLANs on the Virtual I/O Servers
 (VIOS) to support the client workload, via the PowerVM REST API.  The Nova
 component will set up the peer adapter as part of VIF plugging.
 
-The design of this agent will attempt to match, where possible, the Open
-vSwitch Agent design.  However, only networks of physical type VLAN will be
-supported as part of this blueprint.  Future blueprints will be used to expand
-support.
+Only networks of physical type VLAN are supported.
+
+.. _nova-powervm: https://launchpad.net/nova-powervm
 
 
 Use Cases
-----------
-
-The use cases we anticipate fulfilling are the following:
+---------
 
 * Deploy a VLAN to the specified Virtual I/O Server (or pair of servers) as
   deploys occur.
 
-* Remove the VLAN when the last virtual machine on that server has finished
-  using the network.
+* Periodic heal of the systems (similar to Open vSwitch agent design).
 
-* Provide a heartbeat for the agent.
+* Periodic optimization (removal of unused VLANs from the Shared Ethernet
+  Adapters) of the system.
+
+* Heartbeat of the agent.
 
 
 Project Priority
------------------
+----------------
 
 None
-
-
-Proposed change
-===============
-
-This blueprint, along with associated blueprints in Nova and Ceilometer, plans
-to bring the PowerVM hypervisor into the OpenStack community.
-
-The ML2 plugin provides a framework that allows for different types of
-platform agents (eg. Linux Bridge and Open vSwitch) to support their
-respective hypervisors and networking technologies.
-
-The proposed change plans to build upon the work that the Neutron community
-has done within the ML2 plugin by building a PowerVM Neutron Agent that is ML2
-compatible.
-
-The agent will provision the necessary VLAN to support the workload on the
-Virtual I/O Servers.  The scope of this initial blueprint will limit the
-provider network type to VLAN.  The actions against the Virtual I/O Servers
-will be done via the PowerVM REST API stack via a python wrapper.
-
-This agent will be developed in StackForge under the networking-powervm project.
-Keeping in line with the Neutron team goals, this agent is planned to stay
-independent of Neutron core, but interlock will be done with the Neutron team
-as needed.
-
-Until otherwise indicated, this agent will be marked experimental.
-
-
-Alternatives
-------------
-
-A possible alternative would be to create a new PowerVM Neutron plugin.
-However, that would not fit within broader project goals, and would end up
-reimplementing logic.  It would also not allow the hypervisor to exist in a
-heterogeneous environment with other hypervisor types.
 
 
 Data model impact
@@ -114,36 +75,34 @@ None
 Other end user impact
 ---------------------
 
-None to the deployer.
-
-For the current releases of OpenStack, the administrator will need to obtain
-the agent from StackForge (and understand it’s experimental status).  The cloud
-administrator will then need to configure a PowerVM specific ini file.  This
-will include defining which Shared Ethernet Adapters a given physical network
-maps to.
+None to end user.
 
 
 Performance Impact
 ------------------
 
-It is a goal to provide a similar level of performance to the existing Open
-vSwitch Agent.
+No performance impact.  Deploy operations should not be impacted by using this
+agent.
 
 
 Other deployer impact
 ---------------------
 
-A default ini file will provide a template of information that details
-configuring the agent.  Administrators will need to modify this ini file to
-fit their needs.
+The operator needs to obtain the agent from the code repository.  The cloud
+administrator needs to install the agent on both the Neutron controller as well
+as on the compute node.
 
-Information that the administrator will need to provide will include:
+The operator will then need to configure the bridge_mappings, to define in the
+CONF file how to map the physical networks to the adapters.  No further
+configuration is required for the operator.  If only one physical network
+exists (the default), and a single Shared Ethernet Adapter, no bridge_mapping
+configuration is required.  The agent will assume the default network maps to
+that single Shared Ethernet Adapter (or single pair SEAs set up for redundancy).
 
-* Mapping of the physical networks that apply to this agent.
+Redundant Shared Ethernet Adapters (as defined by the `PowerVM Redbook`_) are
+fully supported by this agent.
 
-* For each physical network, which segmentation IDs (VLANs) are supported
-  against a given Shared Ethernet Adapter.
-
+.. _PowerVM Redbook: http://www.redbooks.ibm.com/abstracts/sg247940.html
 
 Developer impact
 ----------------
@@ -161,34 +120,9 @@ Primary assignee:
   thorst
 
 Other contributors:
-  kyleh
-  dwarcher
+  wpward
+  svenkat
   efried
-
-Work Items
-----------
-
-* Create a PowerVM specific agent package in the
-  /networking_powervm/plugins/ibm/agent/powervm/ folder.  Stub out the methods.
-
- * Create a PowerVM mechanism driver in /networking_powervm/ml2/drivers/.
-
-* Create a baseline ini file that provides information needed to bring up the
-  agent and map it to provider networks.
-
-* Build in a heartbeat mechanism for the agent.
-
-* Build a polling loop that listens for port changes.
-
-* Determine ports added or removed.  Upon an add or remove, use the PowerVM
-  REST API (via the open source python wrapper) to ensure that the appropriate
-  Shared Ethernet Adapter has the necessary VLAN.
-
-* Provide extensive unit tests (part of other work items).
-
-* Implement a functional automation server that listens for incoming change
-  set commits from the community and provides a non-gating vote (+1 or -1) on
-  the change.
 
 
 Dependencies
@@ -196,12 +130,14 @@ Dependencies
 
 * The Neutron ML2 Plugin.
 
-* Will utilize the PowerVM REST API specification for management.  Will
+* Utilizes the PowerVM REST API specification for management.  Will
   utilize future versions of this specification as it becomes available:
   http://ibm.co/1lThV9R
 
-* Will build on top of the pypowervm library.  An open-source, python based
+* Builds on top of the `pypowervm`_ library.  An open-source, python based
   library that interacts with the PowerVM REST API.
+
+.. _pypowervm: https://github.com/pypowervm
 
 
 Testing
@@ -212,50 +148,27 @@ Tempest Tests
 
 Since the tempest tests should be implementation agnostic, the existing
 tempest tests should be able to run against the PowerVM agent without issue.
-This blueprint does not foresee any changes based off this agent.
 
-Thorough unit tests will be created with the agent to validate specific
-functions within this implementation.
+Thorough unit tests exist within the agent that validate specific functions
+for this implementation.
 
 
 Functional Tests
 ----------------
 
-A third party functional test environment will be created.  It will monitor
-for incoming neutron change sets.  Once it detects a new change set, it will
+A third party functional test environment has been created.  It monitors
+incoming Neutron change sets.  Once it detects a new change set, it should
 execute the existing lifecycle API tests.  A non-gating vote (+1 or -1) will
 be provided with information provided (logs) based on the result.
+
+Work continues in this area.
 
 
 API Tests
 ---------
 
-The REST APIs are not planned to change as part of this.  Existing APIs should
-be valid.  All testing is planned within the functional testing system and via
-unit tests.
+No changes (no new APIs)
 
-
-Documentation Impact
-====================
-
-User Documentation
-------------------
-
-Documentation will be contributed which identifies how to set up and configure
-the agent.  This will include configuring the dependencies specified above.
-
-Documentation will be done on wiki, specifically at a minimum to the following
-page: http://docs.openstack.org/icehouse/install-guide/install/yum/content/neutron-ml2-compute-node.html
-
-Interlock will be done with the OpenStack documentation team.
-
-
-Developer Documentation
------------------------
-
-No developer documentation additions are anticipated.  If the existing
-developer documentation is updated to reflect more hypervisor specific items,
-this agent will follow suit.
 
 
 References

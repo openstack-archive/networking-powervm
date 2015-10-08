@@ -55,7 +55,6 @@ To run only pep8::
 
     tox -e pep8
 
-Since pep8 includes running pylint on all files, it can take quite some time to run.
 To restrict the pylint check to only the files altered by the latest patch changes::
 
     tox -e pep8 HEAD~1
