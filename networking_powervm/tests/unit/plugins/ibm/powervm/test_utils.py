@@ -22,6 +22,7 @@ from networking_powervm.tests.unit.plugins.ibm.powervm import base
 
 from pypowervm import const as pvm_const
 from pypowervm import exceptions as pvm_exc
+from pypowervm.helpers import log_helper as pvm_log
 from pypowervm.tests import test_fixtures as pvm_fx
 from pypowervm.tests.test_utils import pvmhttp
 from pypowervm.wrappers import network as pvm_net
@@ -166,6 +167,14 @@ class UtilsTest(base.BasePVMTestCase):
 
         mock_list_vms.side_effect = list_vms
         mock_cna_wrap.return_value = ['mocked']
+
+        def read(*args, **kwargs):
+            # Ensure we don't have the log helper in the adapter on the call.
+            helpers = kwargs['helpers']
+            if pvm_log.log_helper in helpers:
+                self.fail()
+            return mock.Mock()
+        self.adpt.read = read
 
         # Get the CNAs and validate
         cnas = utils.list_cnas(self.adpt, 'host_uuid')
