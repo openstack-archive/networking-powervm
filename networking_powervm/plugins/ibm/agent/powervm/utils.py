@@ -17,6 +17,7 @@
 from oslo_log import log as logging
 
 from pypowervm import exceptions as pvm_exc
+from pypowervm.helpers import log_helper as pvm_log
 from pypowervm import util as pvm_util
 from pypowervm.utils import retry as pvm_retry
 from pypowervm.wrappers import logical_partition as pvm_lpar
@@ -259,13 +260,26 @@ def list_cnas(adapter, host_uuid, lpar_uuid=None):
     return total_cnas
 
 
+def _remove_log_helper(adapter):
+    # Remove the log handler from the adapter so we don't log missing VMs
+    # Pulling the helpers makes a copy
+    helpers = adapter.helpers
+    try:
+        helpers.remove(pvm_log.log_helper)
+    except ValueError:
+        # It's not an error if we didn't find it since we don't want it.
+        pass
+    return helpers
+
+
 @pvm_retry.retry()
 def _find_cnas(adapter, vm_uuid):
     try:
         # Extend the array to include the response
         vm_cna_feed_resp = adapter.read(
             pvm_lpar.LPAR.schema_type, root_id=vm_uuid,
-            child_type=pvm_net.CNA.schema_type)
+            child_type=pvm_net.CNA.schema_type,
+            helpers=_remove_log_helper(adapter))
         return pvm_net.CNA.wrap(vm_cna_feed_resp)
     except pvm_exc.HttpError as e:
         # If it is a 404 (not found) then just skip.
