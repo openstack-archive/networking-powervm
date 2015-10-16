@@ -238,7 +238,6 @@ def list_lpar_uuids(adapter, host_uuid):
     return [x.uuid for x in _list_vm_entries(adapter, host_uuid)]
 
 
-@pvm_retry.retry()
 def list_cnas(adapter, host_uuid, lpar_uuid=None):
     """Lists all of the Client Network Adapters for the running VMs.
 
@@ -256,22 +255,28 @@ def list_cnas(adapter, host_uuid, lpar_uuid=None):
     # Loop through the VMs
     total_cnas = []
     for vm_uuid in vm_uuids:
-        try:
-            # Extend the array to include the response
-            vm_cna_feed_resp = adapter.read(
-                pvm_lpar.LPAR.schema_type, root_id=vm_uuid,
-                child_type=pvm_net.CNA.schema_type)
-            total_cnas.extend(pvm_net.CNA.wrap(vm_cna_feed_resp))
-        except pvm_exc.HttpError as e:
-            # If it is a 404 (not found) then just skip.
-            if e.response is not None and e.response.status == 404:
-                pass
-            else:
-                raise
+        total_cnas.extend(_find_cnas(adapter, vm_uuid))
 
     return total_cnas
 
 
+@pvm_retry.retry()
+def _find_cnas(adapter, vm_uuid):
+    try:
+        # Extend the array to include the response
+        vm_cna_feed_resp = adapter.read(
+            pvm_lpar.LPAR.schema_type, root_id=vm_uuid,
+            child_type=pvm_net.CNA.schema_type)
+        return pvm_net.CNA.wrap(vm_cna_feed_resp)
+    except pvm_exc.HttpError as e:
+        # If it is a 404 (not found) then just skip.
+        if e.response is not None and e.response.status == 404:
+            return []
+        else:
+            raise
+
+
+@pvm_retry.retry()
 def _list_vm_entries(adapter, host_uuid):
     """
     Returns a List of all of the Client (non-VIOS) VMs on the system.
