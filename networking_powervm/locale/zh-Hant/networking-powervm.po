@@ -6,10 +6,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 0.0.1.dev82\n"
+"Project-Id-Version: networking-powervm 0.0.1.dev93\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2015-09-03 10:54-0400\n"
-"PO-Revision-Date: 2015-09-03 10:54-0400\n"
+"POT-Creation-Date: 2015-10-06 14:03-0500\n"
+"PO-Revision-Date: 2015-10-06 14:03-0500\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "MIME-Version: 1.0\n"
@@ -18,6 +18,14 @@ msgstr ""
 "Generated-By: Babel 2.0\n"
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:47
+msgid ""
+"The number of seconds agent will wait between polling when exception is "
+"caught"
+msgstr ""
+"在捕捉到異常狀況時，代理程式將在兩次輪詢之間"
+"等待的秒數"
+
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:50
 #: networking_powervm/plugins/ibm/agent/powervm/fake_sea_agent.py:46
 msgid ""
 "The number of seconds the agent will wait between polling for local "
@@ -26,17 +34,17 @@ msgstr ""
 "輪詢本端裝置變更之間代理程式"
 "將等待的秒數。"
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:50
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:53
 msgid ""
 "The number of seconds the agent should wait between heal/optimize "
 "intervals.  Should be higher than the polling_interval as it runs in the "
 "nearest polling loop."
 msgstr ""
 "在恢復/最佳化間隔之間，代理程式應該等待的"
-"秒數。應該高於 polling_interval，因為它在最近的"
-"輪詢迴圈中執行。"
+"秒數。應該大於 polling_interval，因為它在"
+"最近的輪詢迴圈中執行。"
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:228
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:212
 msgid "Failed reporting state!"
 msgstr "無法報告狀態！"
 
@@ -50,7 +58,7 @@ msgid ""
 "There are no network bridges (ex. Shared Ethernet Adapters) on the "
 "system.  Can not start the Neutron agent."
 msgstr ""
-"系統上沒有網路橋接器（即「共用乙太網路"
+"系統上沒有網路橋接器（例如「共用乙太網路"
 "配接卡」）。無法啟動 Neutron 代理程式。"
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:30
@@ -60,7 +68,7 @@ msgid ""
 "proceeding."
 msgstr ""
 "系統具有多個網路橋接器，但尚未指定"
-" bridge_mappings。請先配置 bridge_mappings，然後再"
+"橋接器對映。請先配置橋接器對映，然後再"
 "繼續。"
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:36

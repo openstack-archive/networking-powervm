@@ -1,0 +1,62 @@
+# Translations template for networking-powervm.
+# Copyright (C) 2015 ORGANIZATION
+# This file is distributed under the same license as the networking-powervm
+# project.
+# Automatically generated, 2015.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: networking-powervm 0.0.1.dev93\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2015-10-06 14:03-0500\n"
+"PO-Revision-Date: 2015-10-06 14:03-0500\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.0\n"
+
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:336
+msgid "Error has been encountered and logged.  The agent will retry again."
+msgstr "오류가 발생하여 로그되었습니다. 에이전트가 재시도합니다."
+
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:111
+#, python-format
+msgid "Unable to parse URI %s for provision request assessment."
+msgstr "프로비저닝 요청 평가를 위해 URI %s을(를) 구문 분석할 수 없습니다."
+
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:232
+msgid "An error occurred while attempting to update the PVID of the virtual NIC."
+msgstr "가상 NIC의 PVID를 업데이트하는 중에 오류가 발생했습니다."
+
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:454
+#, python-format
+msgid "Cleaning up VLAN %(vlan)s from the system.  It is no longer in use."
+msgstr "VLAN %(vlan)s을(를) 시스템에서 정리하는 중입니다. 더 이상 사용되지 않습니다."
+
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:512
+#, python-format
+msgid ""
+"Unable to determine the Network Bridge (Shared Ethernet Adapter) for "
+"physical network %s.  Will be unable to determine appropriate "
+"provisioning action."
+msgstr ""
+"물리적 네트워크 %s에 대한 네트워크 브릿지(공유 이더넷 어댑터)를 "
+"판별할 수 없습니다. 적절한 프로비저닝 조치를 판별할 수 "
+"없습니다."
+
+#: networking_powervm/plugins/ibm/agent/powervm/utils.py:142
+msgid ""
+"The bridge_mappings for the agent was not specified.  There was exactly "
+"one Network Bridge on the system.  Agent is assuming the default network "
+"is backed by the single Network Bridge."
+msgstr ""
+"에이전트에 대한 bridge_mappings가 지정되지 않았습니다. 시스템에 "
+"정확히 하나의 네트워크 브릿지가 있었습니다. 에이전트에서는 단일 "
+"네트워크 브릿지가 기본 네트워크를 지원한다고 가정합니다."
+
+#: networking_powervm/plugins/ibm/agent/powervm/utils.py:307
+msgid "No NetworkBridges detected on the host."
+msgstr "호스트에서 네트워크 브릿지가 발견되지 않았습니다."
+

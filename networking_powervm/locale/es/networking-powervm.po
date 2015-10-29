@@ -6,10 +6,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 0.0.1.dev82\n"
+"Project-Id-Version: networking-powervm 0.0.1.dev93\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2015-09-03 10:54-0400\n"
-"PO-Revision-Date: 2015-09-03 10:54-0400\n"
+"POT-Creation-Date: 2015-10-06 14:03-0500\n"
+"PO-Revision-Date: 2015-10-06 14:03-0500\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "MIME-Version: 1.0\n"
@@ -18,6 +18,14 @@ msgstr ""
 "Generated-By: Babel 2.0\n"
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:47
+msgid ""
+"The number of seconds agent will wait between polling when exception is "
+"caught"
+msgstr ""
+"El número de segundos que el agente esperará entre sondeos cuando se capture una "
+"excepción"
+
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:50
 #: networking_powervm/plugins/ibm/agent/powervm/fake_sea_agent.py:46
 msgid ""
 "The number of seconds the agent will wait between polling for local "
@@ -26,17 +34,17 @@ msgstr ""
 "El número de segundos que el agente esperará entre el sondeo para los cambios de "
 "dispositivo local."
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:50
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:53
 msgid ""
 "The number of seconds the agent should wait between heal/optimize "
 "intervals.  Should be higher than the polling_interval as it runs in the "
 "nearest polling loop."
 msgstr ""
 "El número de segundos que el agente esperará entre intervalos de "
-"remediar/optimizar. Debe ser mayor que polling_interval ya que se "
+"recuperación/optimización. Debe ser mayor que el polling_interval porque se "
 "ejecuta en el bucle de sondeo más próximo."
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:228
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:212
 msgid "Failed reporting state!"
 msgstr "Se ha encontrado un error al informar del estado."
 
@@ -50,8 +58,8 @@ msgid ""
 "There are no network bridges (ex. Shared Ethernet Adapters) on the "
 "system.  Can not start the Neutron agent."
 msgstr ""
-"No hay puentes de red (p.ej. adaptadores Ethernet compartidos) en "
-"el sistema. No se puede iniciar el agente Neutron."
+"No hay puentes de red (por ejemplo, adaptadores Ethernet compartidos) en el "
+"sistema. No se puede iniciar el agente Neutron."
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:30
 msgid ""
@@ -60,7 +68,7 @@ msgid ""
 "proceeding."
 msgstr ""
 "El sistema tiene más de un puente de red, pero no se ha especificado"
-" bridge_mappings.  Configure bridge_mappings antes de "
+" bridge_mappings. Configure bridge_mappings antes de "
 "continuar."
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:36

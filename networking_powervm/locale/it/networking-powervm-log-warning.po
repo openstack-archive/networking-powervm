@@ -1,0 +1,62 @@
+# Translations template for networking-powervm.
+# Copyright (C) 2015 ORGANIZATION
+# This file is distributed under the same license as the networking-powervm
+# project.
+# Automatically generated, 2015.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: networking-powervm 0.0.1.dev93\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2015-10-06 14:03-0500\n"
+"PO-Revision-Date: 2015-10-06 14:03-0500\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.0\n"
+
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:336
+msgid "Error has been encountered and logged.  The agent will retry again."
+msgstr "L'errore è stato rilevato e registrato. L'agent ritenterà l'operazione."
+
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:111
+#, python-format
+msgid "Unable to parse URI %s for provision request assessment."
+msgstr "Impossibile analizzare l'URI %s per la valutazione della richiesta di provisionioning."
+
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:232
+msgid "An error occurred while attempting to update the PVID of the virtual NIC."
+msgstr "Si è verificato un errore durante il tentativo di aggiornare il PVID del NIC virtuale."
+
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:454
+#, python-format
+msgid "Cleaning up VLAN %(vlan)s from the system.  It is no longer in use."
+msgstr "Cleanup della VLAN %(vlan)s dal sistema. Non è più in uso."
+
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:512
+#, python-format
+msgid ""
+"Unable to determine the Network Bridge (Shared Ethernet Adapter) for "
+"physical network %s.  Will be unable to determine appropriate "
+"provisioning action."
+msgstr ""
+"Impossibile determinare il bridge di rete (SEA-Shared Ethernet Adapter) per "
+"la rete fisica %s. Sarà impossibile determinare l'appropriata "
+"azione di provisioning."
+
+#: networking_powervm/plugins/ibm/agent/powervm/utils.py:142
+msgid ""
+"The bridge_mappings for the agent was not specified.  There was exactly "
+"one Network Bridge on the system.  Agent is assuming the default network "
+"is backed by the single Network Bridge."
+msgstr ""
+"Le associazioni bridge per l'agent non sono state specificate. C'era esattamente "
+"un bridge di rete sul sistema. L'agent presume che la rete predefinita "
+"sia supportata dal singolo bridge di rete."
+
+#: networking_powervm/plugins/ibm/agent/powervm/utils.py:307
+msgid "No NetworkBridges detected on the host."
+msgstr "Nessun bridge di rete rilevato sull'host."
+
