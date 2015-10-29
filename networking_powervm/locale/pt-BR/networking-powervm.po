@@ -22,8 +22,8 @@ msgid ""
 "The number of seconds agent will wait between polling when exception is "
 "caught"
 msgstr ""
-"捕获到异常时，代理进程进行轮询之间将等待的"
-"秒数"
+"O número de segundos que o agente aguardará entre a pesquisa quando a exceção for "
+"capturar"
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:50
 #: networking_powervm/plugins/ibm/agent/powervm/fake_sea_agent.py:46
@@ -31,8 +31,8 @@ msgid ""
 "The number of seconds the agent will wait between polling for local "
 "device changes."
 msgstr ""
-"在轮询本地设备更改之间，"
-"代理程序将等待的秒数。"
+"O número de segundos que o agente aguardará entre as pesquisas para "
+"mudanças do dispositivo locais."
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:53
 msgid ""
@@ -40,26 +40,26 @@ msgid ""
 "intervals.  Should be higher than the polling_interval as it runs in the "
 "nearest polling loop."
 msgstr ""
-"在恢复/优化时间间隔之间，"
-"代理程序应等待的秒数。应大于轮询时间间隔，"
-"因为它在最近的轮询循环中运行。"
+"O número de segundos que o agente deve aguardar entre intervalos de corrigir/otimizar "
+"intervalos. Deve ser maior que o polling_interval, uma vez que é executado no "
+"loop de pesquisa mais perto."
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:212
 msgid "Failed reporting state!"
-msgstr "未能报告状态！"
+msgstr "Falha em relatar estado!"
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:21
 #, python-format
 msgid "Expected exactly one host; found %(host_count)d"
-msgstr "期望刚好找到一个主机；但是找到 %(host_count)d 个主机"
+msgstr "Esperado exatamente um host; localizados %(host_count)d"
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:25
 msgid ""
 "There are no network bridges (ex. Shared Ethernet Adapters) on the "
 "system.  Can not start the Neutron agent."
 msgstr ""
-"系统上不存在网桥（例如，共享以太网适配器）。"
-"无法启动 Neutron 代理进程。"
+"Não há pontes de rede (ex. Adaptadores Ethernet Compartilhados) no "
+"sistema. Não é possível iniciar o agente Neutron."
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:30
 msgid ""
@@ -67,9 +67,9 @@ msgid ""
 " not been specified.  Please configure the bridge_mappings before "
 "proceeding."
 msgstr ""
-"系统具有多个网桥，"
-"但是尚未指定 bridge_mappings。请先配置 bridge_mappings，"
-"然后再继续操作。"
+"O sistema possui mais de uma ponte de rede, mas bridge_mappings"
+"não foi especificado. Configure bridge_mappings antes de "
+"continuar."
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:36
 #, python-format
@@ -77,6 +77,6 @@ msgid ""
 "Device %(dev)s on Virtual I/O Server %(vios)s was not found.  Unable to "
 "set up physical network %(phys_net)s."
 msgstr ""
-"在 Virtual I/O Server %(vios)s 上找不到设备 %(dev)s。"
-"无法设置物理网络 %(phys_net)s。"
+"O dispositivo %(dev)s no Virtual I/O Server %(vios)s não foi localizado. Não é possível"
+"configurar a rede física %(phys_net)s."
 

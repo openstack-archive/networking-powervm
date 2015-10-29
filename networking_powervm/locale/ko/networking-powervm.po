@@ -6,10 +6,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 0.0.1.dev82\n"
+"Project-Id-Version: networking-powervm 0.0.1.dev93\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2015-09-03 10:54-0400\n"
-"PO-Revision-Date: 2015-09-03 10:54-0400\n"
+"POT-Creation-Date: 2015-10-06 14:03-0500\n"
+"PO-Revision-Date: 2015-10-06 14:03-0500\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "MIME-Version: 1.0\n"
@@ -18,6 +18,14 @@ msgstr ""
 "Generated-By: Babel 2.0\n"
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:47
+msgid ""
+"The number of seconds agent will wait between polling when exception is "
+"caught"
+msgstr ""
+"예외 발생 시 에이전트가 폴링 사이에 대기할 "
+"시간(초)"
+
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:50
 #: networking_powervm/plugins/ibm/agent/powervm/fake_sea_agent.py:46
 msgid ""
 "The number of seconds the agent will wait between polling for local "
@@ -26,17 +34,17 @@ msgstr ""
 "에이전트가 로컬 장치 변경사항을 폴링하는 사이에 대기할 "
 "시간(초)입니다."
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:50
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:53
 msgid ""
 "The number of seconds the agent should wait between heal/optimize "
 "intervals.  Should be higher than the polling_interval as it runs in the "
 "nearest polling loop."
 msgstr ""
 "에이전트가 heal/최적화 간격 사이에 대기해야 하는 "
-"시간(초)입니다. 가장 가까운 폴링 루프에서 실행하므로 polling_interval보다 "
+"시간(초)입니다. 가장 가까운 폴링 루프에서 실행되므로 "
 "높아야 합니다."
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:228
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:212
 msgid "Failed reporting state!"
 msgstr "상태 보고 실패!"
 
@@ -50,8 +58,8 @@ msgid ""
 "There are no network bridges (ex. Shared Ethernet Adapters) on the "
 "system.  Can not start the Neutron agent."
 msgstr ""
-"시스템에 네트워크 브릿지(예: 공유 이더넷 어댑터)가 "
-"없습니다. Neutron 에이전트를 시작할 수 없습니다."
+"시스템에 네트워크 브릿지(예: 공유 이더넷 어댑터)가 없습니다. "
+"Neutron 에이전트를 시작할 수 없습니다."
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:30
 msgid ""
@@ -60,7 +68,7 @@ msgid ""
 "proceeding."
 msgstr ""
 "시스템에 두 개 이상의 네트워크 브릿지가 있지만 bridge_mappings가 "
-" 지정되지 않았습니다. 진행하기 전에 bridge_mappings를 "
+"지정되지 않았습니다. 진행하기 전에 bridge_mappings를 "
 "구성하십시오."
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:36
@@ -69,6 +77,6 @@ msgid ""
 "Device %(dev)s on Virtual I/O Server %(vios)s was not found.  Unable to "
 "set up physical network %(phys_net)s."
 msgstr ""
-"Virtual I/O Server %(vios)s의 %(dev)s 장치를 찾을 수 없습니다. 물리적 "
+"Virtual I/O Server %(vios)s의 %(dev)s 장치를 찾을 수 없습니다. "
 "네트워크 %(phys_net)s을(를) 설정할 수 없습니다. "
 
