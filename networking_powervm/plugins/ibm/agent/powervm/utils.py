@@ -16,8 +16,6 @@
 
 from oslo_log import log as logging
 
-from neutron.i18n import _LW
-
 from pypowervm import exceptions as pvm_exc
 from pypowervm import util as pvm_util
 from pypowervm.utils import retry as pvm_retry
@@ -27,6 +25,7 @@ from pypowervm.wrappers import network as pvm_net
 from pypowervm.wrappers import virtual_io_server as pvm_vios
 
 from networking_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
+from networking_powervm.plugins.ibm.agent.powervm.i18n import _LW
 
 LOG = logging.getLogger(__name__)
 

@@ -28,12 +28,14 @@ from neutron.agent import rpc as agent_rpc
 from neutron.common import constants as q_const
 from neutron.common import topics
 from neutron import context as ctx
-from neutron.i18n import _, _LW, _LI
 from pypowervm import adapter as pvm_adpt
 from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp
 from pypowervm.utils import uuid as pvm_uuid
 
+from networking_powervm.plugins.ibm.agent.powervm.i18n import _
+from networking_powervm.plugins.ibm.agent.powervm.i18n import _LI
+from networking_powervm.plugins.ibm.agent.powervm.i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import utils
 
 import time

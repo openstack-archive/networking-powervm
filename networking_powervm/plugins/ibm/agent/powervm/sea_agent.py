@@ -25,13 +25,15 @@ from oslo_log import log as logging
 
 from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
-from neutron.i18n import _LW, _LE, _LI
 from pypowervm import adapter as pvm_adpt
 from pypowervm.tasks import network_bridger as net_br
 from pypowervm import util as pvm_util
 
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
 from networking_powervm.plugins.ibm.agent.powervm import constants as p_const
+from networking_powervm.plugins.ibm.agent.powervm.i18n import _LE
+from networking_powervm.plugins.ibm.agent.powervm.i18n import _LI
+from networking_powervm.plugins.ibm.agent.powervm.i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import utils
 
 import sys
