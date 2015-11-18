@@ -137,7 +137,7 @@ Dependencies
 * Builds on top of the `pypowervm`_ library.  An open-source, python based
   library that interacts with the PowerVM REST API.
 
-.. _pypowervm: https://github.com/pypowervm
+.. _pypowervm: https://github.com/powervm/pypowervm
 
 
 Testing
