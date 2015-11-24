@@ -73,43 +73,44 @@ function cleanup_networking_powervm {
 
 # Core Dispatch
 # -------------
-if is_service_enabled pvm-q-agt; then
-    if [[ "$1" == "stack" && "$2" == "pre-install" ]]; then
+if [[ "$1" == "stack" && "$2" == "pre-install" ]]; then
+    if is_service_enabled pvm-q-agt; then
         # Install NovaLink if set
         if [[ "$INSTALL_NOVALINK" == "True" ]]; then
             echo_summary "Installing NovaLink"
             install_novalink
         fi
-
-        echo_summary "Configuring networking-powervm compute services"
-        # Configure networking services
-        disable_service n-net
-        enable_service q-svc q-dhcp q-l3 q-meta neutron
     fi
+fi
 
-    if [[ "$1" == "stack" && "$2" == "install" ]]; then
-        # Perform installation of networking-powervm
-        echo_summary "Installing networking-powervm"
-        install_networking_powervm
+if [[ "$1" == "stack" && "$2" == "install" ]]; then
+    # Perform installation of networking-powervm
+    echo_summary "Installing networking-powervm"
+    install_networking_powervm
 
-    elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
-        # Lay down configuration post install
-        echo_summary "Configuring networking-powervm"
-        configure_networking_powervm
+elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
+    # Lay down configuration post install
+    echo_summary "Configuring networking-powervm"
+    configure_networking_powervm
 
-    elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
+elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
+    if is_service_enabled pvm-q-agt; then
         # Initialize and start the PowerVM SEA agent
         echo_summary "Starting networking-powervm"
         start_networking_powervm
     fi
+fi
 
-    if [[ "$1" == "unstack" ]]; then
+if [[ "$1" == "unstack" ]]; then
+    if is_service_enabled pvm-q-agt; then
         # Shut down PowerVM SEA agent
         echo_summary "Stopping networking-powervm"
         stop_networking_powervm
     fi
+fi
 
-    if [[ "$1" == "clean" ]]; then
+if [[ "$1" == "clean" ]]; then
+    if is_service_enabled pvm-q-agt; then
         # Remove any lingering configuration data
         # clean.sh first calls unstack.sh
         echo_summary "Cleaning up networking-powervm and associated data"

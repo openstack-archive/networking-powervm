@@ -28,6 +28,8 @@ Installing with Devstack
     pvid_update_loops = 180
     automated_powervm_vlan_cleanup = True
 
+   Example devstack config files for all-in-one, compute, and control nodes `can be found here <https://github.com/openstack/nova-  powervm/tree/master/devstack>`_
+
 4. Run ``stack.sh`` from devstack::
 
     $ cd /opt/stack/devstack

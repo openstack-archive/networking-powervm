@@ -1,8 +1,12 @@
 # Devstack settings
 # These defaults can be overridden in the localrc section of the local.conf file
 
-# Add networking-powervm to enabled services
-enable_service pvm-q-agt
+# If this is a powervm compute node, enable the agent service
+if is_service_enabled n-cpu ; then
+    if [[ "$VIRT_DRIVER" = 'powervm' ]]; then
+        enable_service pvm-q-agt
+    fi
+fi
 
 # NovaLink install/upgrade settings
 INSTALL_NOVALINK=${INSTALL_NOVALINK:-False}
