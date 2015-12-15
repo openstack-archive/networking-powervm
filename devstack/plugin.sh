@@ -44,7 +44,10 @@ function configure_networking_powervm {
 
 # install_networking_powervm() - Install networking_powervm and necessary dependencies
 function install_networking_powervm {
-    install_pypowervm
+    if [[ "$INSTALL_PYPOWERVM" == "True" ]]; then
+        echo_summary "Installing pypowervm"
+        install_pypowervm
+    fi
 
     # Install the networking-powervm package
     setup_develop $NETWORKING_POWERVM_DIR
@@ -76,7 +79,7 @@ function cleanup_networking_powervm {
 if [[ "$1" == "stack" && "$2" == "pre-install" ]]; then
     if is_service_enabled pvm-q-agt; then
         # Install NovaLink if set
-        if [[ "$INSTALL_NOVALINK" == "True" ]]; then
+        if [[ "$INSTALL_NOVALINK" = "True" ]]; then
             echo_summary "Installing NovaLink"
             install_novalink
         fi

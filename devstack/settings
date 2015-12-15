@@ -9,7 +9,8 @@ if is_service_enabled n-cpu ; then
 fi
 
 # NovaLink install/upgrade settings
-INSTALL_NOVALINK=${INSTALL_NOVALINK:-False}
+INSTALL_NOVALINK=$(trueorfalse False INSTALL_NOVALINK)
+INSTALL_PYPOWERVM=$(trueorfalse False INSTALL_PYPOWERVM)
 PVM_ADMIN_GROUP=${PVM_ADMIN_GROUP:-pvm_admin}
 
 # Neutron settings
