@@ -47,8 +47,8 @@ class TestPvmMechDriver(base.BasePVMTestCase):
                         api.PHYSICAL_NETWORK: 'default'}
         fake_context = mock.MagicMock()
         self.mech_drv.rpc_publisher = mock.MagicMock()
-        self.mech_drv.try_to_bind_segment_for_agent(fake_context, fake_segment,
-                                                    None)
+        self.mech_drv.try_to_bind_segment_for_agent(
+            fake_context, fake_segment, None)
         self.mech_drv.rpc_publisher.port_update.assert_called_with(
-                fake_context._plugin_context, fake_context._port,
-                'vlan', '1000', 'default')
+            fake_context._plugin_context, fake_context._port,
+            'vlan', '1000', 'default')
