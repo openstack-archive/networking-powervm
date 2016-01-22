@@ -224,19 +224,25 @@ class BasePVMNeutronAgent(object):
     """
 
     def __init__(self, binary_name, agent_type):
-        self.agent_state = {'binary': binary_name, 'host': cfg.CONF.host,
-                            'topic': q_const.L2_AGENT_TOPIC,
-                            'configurations': {}, 'agent_type': agent_type,
-                            'start_flag': True}
+        # Create the utility class that enables work against the Hypervisors
+        # Shared Ethernet NetworkBridge.
+        self.setup_adapter()
+
+        # Get the bridge mappings
+        self.br_map = self.parse_bridge_mappings()
+
+        self.agent_state = {
+            'binary': binary_name,
+            'host': cfg.CONF.host,
+            'topic': q_const.L2_AGENT_TOPIC,
+            'configurations': {'bridge_mappings': self.br_map},
+            'agent_type': agent_type,
+            'start_flag': True}
         # A list of ports that maintains the list of current 'modified' ports
         self.updated_ports = []
 
         # Set Up RPC to Server
         self.setup_rpc()
-
-        # Create the utility class that enables work against the Hypervisors
-        # Shared Ethernet NetworkBridge.
-        self.setup_adapter()
 
     def setup_adapter(self):
         """Configures the pypowervm adapter and utilities."""
@@ -249,6 +255,13 @@ class BasePVMNeutronAgent(object):
         evt_listener = self.adapter.session.get_event_listener()
         self._cna_event_handler = CNAEventHandler(self)
         evt_listener.subscribe(self._cna_event_handler)
+
+    def parse_bridge_mappings(self):
+        """This method should return the bridge mappings dictionary.
+
+        The pypowervm adapter will be initialized before this method is called.
+        """
+        raise NotImplementedError()
 
     def setup_rpc(self):
         """Registers the RPC consumers for the plugin."""

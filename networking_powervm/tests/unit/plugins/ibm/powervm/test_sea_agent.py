@@ -70,7 +70,8 @@ class SEAAgentTest(base.BasePVMTestCase):
         with mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                         'get_host_uuid'),\
                 mock.patch('networking_powervm.plugins.ibm.agent.'
-                           'powervm.utils.parse_sea_mappings'):
+                           'powervm.utils.parse_sea_mappings') as mappings:
+            mappings.return_value = {'default': 'nb_uuid'}
             self.agent = sea_agent.SharedEthernetNeutronAgent()
             self.agent.adapter = self.adpt
 

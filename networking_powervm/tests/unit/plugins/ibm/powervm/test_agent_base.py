@@ -42,7 +42,10 @@ class TestAgentBase(base.BasePVMTestCase):
         with mock.patch('networking_powervm.plugins.ibm.agent.powervm.'
                         'agent_base.BasePVMNeutronAgent.setup_adapter'),\
                 mock.patch('networking_powervm.plugins.ibm.agent.powervm.'
-                           'agent_base.BasePVMNeutronAgent.setup_rpc'):
+                           'agent_base.BasePVMNeutronAgent.setup_rpc'),\
+                mock.patch('networking_powervm.plugins.ibm.agent.powervm.'
+                           'agent_base.BasePVMNeutronAgent.'
+                           'parse_bridge_mappings'):
             agent = agent_base.BasePVMNeutronAgent('binary_name', 'agent_type')
             agent.context = mock.Mock()
             agent.agent_id = 'pvm'

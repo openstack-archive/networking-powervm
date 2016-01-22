@@ -246,15 +246,29 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         """Constructs the agent."""
         name = 'networking-powervm-sharedethernet-agent'
         agent_type = p_const.AGENT_TYPE_PVM_SEA
-        super(SharedEthernetNeutronAgent, self).__init__(name, agent_type)
 
-        self.br_map = utils.parse_sea_mappings(self.adapter, self.host_uuid,
-                                               ACONF.bridge_mappings)
+        super(SharedEthernetNeutronAgent, self).__init__(name, agent_type)
 
         # A looping utility that updates asynchronously the PVIDs on the
         # Client Network Adapters (CNAs)
         self.pvid_updater = PVIDLooper(self)
         eventlet.spawn_n(self.pvid_updater.looping_call)
+
+    def parse_bridge_mappings(self):
+        return utils.parse_sea_mappings(self.adapter, self.host_uuid,
+                                        ACONF.bridge_mappings)
+
+    def build_prov_requests_from_server(self):
+        """Builds provisioning requests from the server.
+
+        The server may detect that a new port has been built on its system.
+        This method provides the agent implementations to detect this, and
+        return a ProvisionRequest object that will be passed into the
+        attempt_provision method.
+
+        This method is not required to be implemented by agent implementations.
+        """
+        return self._cna_event_handler.get_queue()
 
     def heal_and_optimize(self, is_boot):
         """Heals the system's network bridges and optimizes.

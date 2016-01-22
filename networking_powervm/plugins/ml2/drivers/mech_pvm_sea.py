@@ -36,7 +36,6 @@ class PvmSEAMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
     """
 
     def __init__(self):
-        # TODO(thorst) these need to be evaluated for entry into Neutron core
         super(PvmSEAMechanismDriver, self).__init__(
             pconst.AGENT_TYPE_PVM_SEA,
             pconst.VIF_TYPE_PVM_SEA,
@@ -44,11 +43,16 @@ class PvmSEAMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
         self.rpc_publisher = rpc.AgentNotifierApi(topics.AGENT)
 
     def check_segment_for_agent(self, segment, agent):
-        # TODO(thorst) Define appropriate mapping.  Determine whether
-        # this VLAN / segment can be supported by the agent.
-        LOG.debug("Checking segment: %s", segment)
-        network_type = segment[api.NETWORK_TYPE]
-        return network_type in ['vlan']
+        # TODO(thorst) Remove this in OpenStack Newton.  It can be assumed that
+        # all agents are properly returning the mappings at that time.  The
+        # agents started reporting the mappings in Mitaka.
+        if self.get_mappings(agent):
+            return (super(PvmSEAMechanismDriver, self).
+                    check_segment_for_agent(segment, agent))
+        else:
+            LOG.debug("Checking segment: %s", segment)
+            network_type = segment[api.NETWORK_TYPE]
+            return network_type in ['vlan']
 
     def try_to_bind_segment_for_agent(self, context, segment, agent):
         # When this method is called, the parent should ideally be calling
@@ -69,4 +73,4 @@ class PvmSEAMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
         return [p_constants.TYPE_VLAN]
 
     def get_mappings(self, agent):
-        return agent['configurations'].get('interface_mappings', {})
+        return agent['configurations'].get('bridge_mappings', {})

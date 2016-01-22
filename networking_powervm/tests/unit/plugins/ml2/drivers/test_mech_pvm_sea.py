@@ -28,8 +28,12 @@ class TestPvmMechDriver(base.BasePVMTestCase):
         super(TestPvmMechDriver, self).setUp()
         self.mech_drv = m_pvm.PvmSEAMechanismDriver()
 
-    def test_check_segment_for_agent(self):
+    @mock.patch('networking_powervm.plugins.ml2.drivers.mech_pvm_sea.'
+                'PvmSEAMechanismDriver.get_mappings')
+    def test_check_segment_for_agent(self, mappings):
         """Validates that the VLAN type is supported by the agent."""
+        # Only test the flow where we have custom code.
+        mappings.return_value = {}
 
         fake_segment = {api.NETWORK_TYPE: 'vlan'}
         self.assertTrue(self.mech_drv.check_segment_for_agent(fake_segment,
