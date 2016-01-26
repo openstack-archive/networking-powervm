@@ -19,6 +19,7 @@ import copy
 import eventlet
 eventlet.monkey_patch()
 
+from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service import loopingcall
@@ -31,6 +32,7 @@ from neutron import context as ctx
 from pypowervm import adapter as pvm_adpt
 from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp
+from pypowervm import util as pvm_util
 from pypowervm.utils import uuid as pvm_uuid
 
 from networking_powervm.plugins.ibm.agent.powervm.i18n import _
@@ -138,6 +140,80 @@ class ProvisionRequest(object):
         return hash(self.mac_address)
 
 
+class CNAEventHandler(pvm_adpt.EventHandler):
+    """Listens for Events from the PowerVM API that could be network events.
+
+    This event handler will be invoked by the PowerVM API when something occurs
+    on the system.  This event handler will determine if it could have been
+    related to a network change.  If so, then it will add a ProvisionRequest
+    to the processing queue.
+    """
+
+    def __init__(self, agent):
+        self.agent = agent
+        self.adapter = self.agent.adapter
+        self.host_uuid = self.agent.host_uuid
+        self.prov_req_queue = []
+
+    @lockutils.synchronized('cna_request_queue')
+    def process(self, events):
+        for uri, action in events.items():
+            if action in ['add', 'invalidate']:
+                self.prov_req_queue.extend(self._prov_reqs_for_uri(uri))
+
+    def _prov_reqs_for_uri(self, uri):
+        """Returns set of ProvisionRequests for a URI.
+
+        When the API indicates that a URI is invalid, it will return a
+        List of ProvisionRequests for a given URI.  If the URI is not valid
+        for a ClientNetworkAdapter (CNA) then an empty list will be returned.
+        """
+        try:
+            if not pvm_util.is_instance_path(uri):
+                return []
+        except Exception:
+            LOG.warn(_LW('Unable to parse URI %s for provision request '
+                         'assessment.'), uri)
+            return []
+
+        # The event queue will only return URI's for 'root like' objects.
+        # This is essentially just the LogicalPartition, you can't get the
+        # ClientNetworkAdapter.  So if we find an add/invalidate for the
+        # LogicalPartition, we'll get all the CNAs.
+        #
+        # This check will throw out everything that doesn't include the
+        # LogicalPartition's
+        uuid = pvm_util.get_req_path_uuid(uri, preserve_case=True)
+        if not uri.endswith('LogicalPartition/' + uuid):
+            return []
+
+        # For the LPAR, get the CNAs.
+        cna_wraps = utils.list_cnas(self.adapter, self.host_uuid, uuid)
+        resp = []
+        for cna_w in cna_wraps:
+            # Build a provision request for each type
+            device_mac = utils.norm_mac(cna_w.mac)
+            device_detail = self.agent.get_device_details(device_mac)
+
+            # A device detail will always come back...even if neutron has
+            # no idea what the port is.  This WILL happen for PowerVM, maybe
+            # an event for the mgmt partition or the secure RMC VIF.  We can
+            # detect if Neutron has full device details by simply querying for
+            # the mac from the device_detail
+            if not device_detail.get('mac_address'):
+                continue
+
+            # Must be good!
+            resp.append(ProvisionRequest(device_detail, uuid))
+        return resp
+
+    @lockutils.synchronized('cna_request_queue')
+    def get_queue(self):
+        resp = copy.copy(self.prov_req_queue)
+        self.prov_req_queue = []
+        return resp
+
+
 class BasePVMNeutronAgent(object):
     """Baseline PowerVM Neutron Agent class for extension.
 
@@ -152,14 +228,15 @@ class BasePVMNeutronAgent(object):
                             'topic': q_const.L2_AGENT_TOPIC,
                             'configurations': {}, 'agent_type': agent_type,
                             'start_flag': True}
+        # A list of ports that maintains the list of current 'modified' ports
+        self.updated_ports = []
+
+        # Set Up RPC to Server
         self.setup_rpc()
 
         # Create the utility class that enables work against the Hypervisors
         # Shared Ethernet NetworkBridge.
         self.setup_adapter()
-
-        # A list of ports that maintains the list of current 'modified' ports
-        self.updated_ports = []
 
     def setup_adapter(self):
         """Configures the pypowervm adapter and utilities."""
@@ -167,6 +244,11 @@ class BasePVMNeutronAgent(object):
             pvm_adpt.Session(), helpers=[log_hlp.log_helper,
                                          vio_hlp.vios_busy_retry_helper])
         self.host_uuid = utils.get_host_uuid(self.adapter)
+
+        # Add an event handler to the session.
+        evt_listener = self.adapter.session.get_event_listener()
+        self._cna_event_handler = CNAEventHandler(self)
+        evt_listener.subscribe(self._cna_event_handler)
 
     def setup_rpc(self):
         """Registers the RPC consumers for the plugin."""
@@ -390,7 +472,7 @@ class BasePVMNeutronAgent(object):
 
         This method is not required to be implemented by agent implementations.
         """
-        pass
+        return self._cna_event_handler.get_queue()
 
     def attempt_provision(self, provision_reqs):
         """Attempts the provisioning of ports.
