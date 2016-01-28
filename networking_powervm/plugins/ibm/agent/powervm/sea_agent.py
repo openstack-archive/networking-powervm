@@ -270,7 +270,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         """
         return self._cna_event_handler.get_queue()
 
-    def heal_and_optimize(self, is_boot):
+    def heal_and_optimize(self, is_boot, prov_reqs, lpar_uuids, overall_cnas):
         """Heals the system's network bridges and optimizes.
 
         Will query neutron for all the ports in use on this host.  Ensures that
@@ -286,38 +286,29 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
 
         :param is_boot: Indicates if this is the first call on boot up of the
                         agent.
+        :param prov_reqs: A list of ProvisionRequest objects that represent
+                          the Neutron ports that should exist on this system.
+                          It may include ports that have already been
+                          provisioned.  This method should make sure it calls
+                          update_device_up/down afterwards.
+        :param lpar_uuids: A list of the VM UUIDs for the REST API.
+        :param overall_cnas: A list of the systems Client Network Adapters.
         """
-        # List all our clients
-        client_adpts = utils.list_cnas(self.adapter, self.host_uuid)
-
-        # Get all the devices that Neutron knows for this host.  Note that
-        # we pass in all of the macs on the system.  For VMs that neutron does
-        # not know about, we get back an empty structure with just the mac.
-        client_macs = [utils.norm_mac(x.mac) for x in client_adpts]
-        devs = self.get_devices_details_list(client_macs)
-
         # Dictionary of the required VLANs on the Network Bridge
         nb_req_vlans = {}
         nb_wraps = utils.list_bridges(self.adapter, self.host_uuid)
         for nb_wrap in nb_wraps:
             nb_req_vlans[nb_wrap.uuid] = set()
 
-        for dev in devs:
-            nb_uuid, req_vlan = self._get_nb_and_vlan(dev, emit_warnings=False)
+        # Call down to the provision.  This will call device up on the
+        # requests.
+        self.provision_devices(prov_reqs)
 
-            # This can happen for ports that are on the host, but not in
-            # Neutron.
-            if nb_uuid is None or req_vlan is None:
-                continue
-
-            # If that list does not contain my VLAN, add it
+        # Make sure that the provision requests VLAN is captured in the
+        # nb_req_vlans list...so that the VLAN is not accidentally removed.
+        for req in prov_reqs:
+            nb_uuid, req_vlan = self._get_nb_and_vlan(req, emit_warnings=False)
             nb_req_vlans[nb_uuid].add(req_vlan)
-
-        # Lets ensure that all VLANs for the openstack VMs are on the network
-        # bridges.
-        for nb_uuid in nb_req_vlans.keys():
-            net_br.ensure_vlans_on_nb(self.adapter, self.host_uuid, nb_uuid,
-                                      nb_req_vlans[nb_uuid])
 
         # We should clean up old VLANs as well.  However, we only want to clean
         # up old VLANs that are not in use by ANYTHING in the system.
@@ -329,7 +320,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         # (whether managed by OpenStack or not) and then seeing what Network
         # Bridge uses them.
         vswitch_map = utils.get_vswitch_map(self.adapter, self.host_uuid)
-        for client_adpt in client_adpts:
+        for client_adpt in overall_cnas:
             nb = utils.find_nb_for_cna(nb_wraps, client_adpt, vswitch_map)
             # Could occur if a system is internal only.
             if nb is None:

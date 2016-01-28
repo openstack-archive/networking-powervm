@@ -171,7 +171,10 @@ class SEAAgentTest(base.BasePVMTestCase):
         self.assertEqual(0, self.agent.pvid_updater.add.call_count)
 
     @mock.patch('pypowervm.tasks.network_bridger.remove_vlan_from_nb')
-    @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.sea_agent.'
+                'SharedEthernetNeutronAgent._get_nb_and_vlan')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.sea_agent.'
+                'SharedEthernetNeutronAgent.provision_devices')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'get_vswitch_map')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.list_cnas')
@@ -181,7 +184,8 @@ class SEAAgentTest(base.BasePVMTestCase):
                 'find_nb_for_cna')
     def test_heal_and_optimize(
             self, mock_find_nb_for_cna, mock_list_bridges, mock_list_cnas,
-            mock_vs_map, mock_nbr_ensure, mock_nbr_remove):
+            mock_vs_map, mock_prov_devs, mock_get_nb_and_vlan,
+            mock_nbr_remove):
         """Validates the heal and optimization code."""
         # Fake adapters already on system.
         adpts = [FakeClientAdpt('00', 30, []),
@@ -199,6 +203,10 @@ class SEAAgentTest(base.BasePVMTestCase):
         self.agent.pvid_updater = mock.MagicMock()
         self.agent.pvid_updater.pending_vlans = {47}
 
+        # Mock a provision request
+        p_req = mock.Mock()
+        mock_get_nb_and_vlan.return_value = ('nb2_uuid', 23)
+
         # Mock up network bridges.  VLANs 44, 45, and 46 should be deleted
         # as they are not required by anything.  VLAN 47 should be needed
         # as it is in the pending list.
@@ -208,14 +216,15 @@ class SEAAgentTest(base.BasePVMTestCase):
         mock_find_nb_for_cna.return_value = mock_nb2
 
         # Invoke
-        self.agent.heal_and_optimize(False)
+        self.agent.heal_and_optimize(False, [p_req], [], [])
 
         # Verify.  One ensure call per net bridge.
         self.assertEqual(3, mock_nbr_remove.call_count)
-        self.assertEqual(2, mock_nbr_ensure.call_count)
+        mock_prov_devs.assert_called_with([p_req])
 
     @mock.patch('pypowervm.tasks.network_bridger.remove_vlan_from_nb')
-    @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.sea_agent.'
+                'SharedEthernetNeutronAgent.provision_devices')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'get_vswitch_map')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.list_cnas')
@@ -225,7 +234,7 @@ class SEAAgentTest(base.BasePVMTestCase):
                 'find_nb_for_cna')
     def test_heal_and_optimize_no_remove(
             self, mock_find_nb_for_cna, mock_list_bridges, mock_list_cnas,
-            mock_vs_map, mock_nbr_ensure, mock_nbr_remove):
+            mock_vs_map, mock_prov_devs, mock_nbr_remove):
         """Validates the heal and optimization code. No remove."""
         # Fake adapters already on system.
         adpts = [FakeClientAdpt('00', 30, []),
@@ -255,12 +264,12 @@ class SEAAgentTest(base.BasePVMTestCase):
         cfg.CONF.set_override('automated_powervm_vlan_cleanup', False, 'AGENT')
 
         # Invoke
-        self.agent.heal_and_optimize(False)
+        self.agent.heal_and_optimize(False, [], [], [])
 
         # Verify.  One ensure call per net bridge.  Zero for the remove as that
         # has been flagged to not clean up.
         self.assertEqual(0, mock_nbr_remove.call_count)
-        self.assertEqual(2, mock_nbr_ensure.call_count)
+        self.assertEqual(1, mock_prov_devs.call_count)
 
     @mock.patch('oslo_service.loopingcall.FixedIntervalLoopingCall')
     @mock.patch.object(ctx, 'get_admin_context_without_session',

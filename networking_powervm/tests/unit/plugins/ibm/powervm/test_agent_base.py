@@ -48,10 +48,53 @@ class TestAgentBase(base.BasePVMTestCase):
                            'parse_bridge_mappings'):
             agent = agent_base.BasePVMNeutronAgent('binary_name', 'agent_type')
             agent.context = mock.Mock()
+            agent.host_uuid = 'host_uuid'
             agent.agent_id = 'pvm'
             agent.plugin_rpc = mock.MagicMock()
             agent.adapter = self.adpt
         return agent
+
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
+                'BasePVMNeutronAgent.get_devices_details_list')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
+                'list_cnas')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
+                'list_lpar_uuids')
+    def test_build_system_prov_requests(self, mock_lpar_list, mock_list_cnas,
+                                        mock_dev_details):
+        agent = self.build_test_agent()
+
+        # Mock data
+        mock_lpar_list.return_value = ['uuid1', 'uuid2', 'uuid3']
+        mock_list_cnas.side_effect = [[mock.Mock(mac='aabbccddeefd')],
+                                      [mock.Mock(mac='aabbccddeefe')],
+                                      [mock.Mock(mac='aabbccddeeff')]]
+        mock_dev_details.return_value = [
+            {'device': 'aa:bb:cc:dd:ee:fd'}, {'mac_address': 'aabbccddeefe'},
+            {'mac_address': 'aa:bb:cc:dd:ee:ff'}]
+
+        # Run the method
+        prov_reqs, lpar_uuids, cnas = agent._build_system_prov_requests()
+
+        # Validation
+        self.assertEqual(2, len(prov_reqs))
+        self.assertEqual(['uuid1', 'uuid2', 'uuid3'], lpar_uuids)
+        self.assertEqual(3, len(cnas))
+
+    def test_find_dev(self):
+        agent = self.build_test_agent()
+
+        mock_cna = mock.Mock(mac='aa:bb:cc:dd:ee:ff')
+
+        # This is what a device looks like if you call neutron for a port
+        # that exists on the system, but not in Neutron itself.
+        mock_dev1 = {'device': 'aa:bb:cc:dd:ee:ff'}
+
+        # This is a subset of the real data you get back for a proper port.
+        mock_dev2 = {'mac_address': 'aabbccddeeff'}
+
+        self.assertEqual(mock_dev2,
+                         agent._find_dev(mock_cna, [mock_dev1, mock_dev2]))
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.provision_devices')

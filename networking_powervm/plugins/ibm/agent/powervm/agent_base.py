@@ -114,13 +114,14 @@ class ProvisionRequest(object):
     aspects into a single element.
     """
 
-    def __init__(self, device_detail, lpar_uuid):
+    def __init__(self, device_detail, lpar_uuid, client_type='vea'):
         self.segmentation_id = device_detail.get('segmentation_id')
         self.physical_network = device_detail.get('physical_network')
         self.mac_address = device_detail.get('mac_address')
         self.device_owner = device_detail.get('device_owner')
         self.rpc_device = device_detail
         self.lpar_uuid = lpar_uuid
+        self.client_type = client_type
 
     def __eq__(self, other):
         if not isinstance(other, ProvisionRequest):
@@ -353,7 +354,57 @@ class BasePVMNeutronAgent(object):
         self.updated_ports = []
         return ports
 
-    def heal_and_optimize(self, is_boot):
+    def _build_system_prov_requests(self):
+        """Builds ProvisionRequests for the entire system.
+
+        It is expected this is used in the heal_and_optimize code path.  After
+        these devices are pulled, something will need to reset their states
+        back to 'up'.  That is the requirement of the implementing class.
+        """
+        prov_reqs = []
+
+        # Get all the LPARs...we need to match up the client adapters with a
+        # given device.
+        lpar_uuids = utils.list_lpar_uuids(self.adapter, self.host_uuid)
+        overall_cnas = []
+        lpar_cna_map = {}
+        for lpar_uuid in lpar_uuids:
+            lpar_cna_map[lpar_uuid] = utils.list_cnas(
+                self.adapter, self.host_uuid, lpar_uuid=lpar_uuid)
+            overall_cnas.extend(lpar_cna_map[lpar_uuid])
+
+        # Get all the devices that Neutron knows for this host.  Note that
+        # we pass in all of the macs on the system.  For VMs that neutron does
+        # not know about, we get back an empty structure with just the mac.
+        client_macs = [utils.norm_mac(x.mac) for x in overall_cnas]
+        devs = self.get_devices_details_list(client_macs)
+
+        # Build out all of the devices that we have available to us.  Some
+        # may be on the system but not part of OpenStack.  Those get ignored.
+        for lpar_uuid in lpar_cna_map.keys():
+            for cna in lpar_cna_map[lpar_uuid]:
+                dev = self._find_dev(cna, devs)
+                if dev:
+                    prov_reqs.append(ProvisionRequest(dev, lpar_uuid))
+
+        return prov_reqs, lpar_uuids, overall_cnas
+
+    def _find_dev(self, cna, devs):
+        cna_mac = utils.norm_mac(cna.mac)
+        for dev in devs:
+            # A device detail will always come back...even if neutron has
+            # no idea what the port is.  This WILL happen for PowerVM, maybe
+            # an event for the mgmt partition or the secure RMC VIF.  We can
+            # detect if Neutron has full device details by simply querying for
+            # the mac from the device_detail
+            if not dev.get('mac_address'):
+                continue
+
+            if utils.norm_mac(dev.get('mac_address')) == cna_mac:
+                return dev
+        return None
+
+    def heal_and_optimize(self, is_boot, prov_reqs, lpar_uuids, overall_cnas):
         """Ensures that the bridging supports all the needed ports.
 
         This method is invoked periodically (not on every RPC loop).  Its
@@ -362,6 +413,13 @@ class BasePVMNeutronAgent(object):
 
         :param is_boot: Indicates if this is the first call on boot up of the
                         agent.
+        :param prov_reqs: A list of ProvisionRequest objects that represent
+                          the Neutron ports that should exist on this system.
+                          It may include ports that have already been
+                          provisioned.  This method should make sure it calls
+                          update_device_up/down afterwards.
+        :param lpar_uuids: A list of the VM UUIDs for the REST API.
+        :param overall_cnas: A list of the systems Client Network Adapters.
         """
         raise NotImplementedError()
 
@@ -402,7 +460,10 @@ class BasePVMNeutronAgent(object):
                 # If the loop interval has passed, heal and optimize
                 if time.time() - loop_timer > loop_interval:
                     LOG.debug("Performing heal and optimization of system.")
-                    self.heal_and_optimize(first_loop)
+                    prov_reqs, lpar_uuids, overall_cnas =\
+                        self._build_system_prov_requests()
+                    self.heal_and_optimize(first_loop, prov_reqs, lpar_uuids,
+                                           overall_cnas)
                     first_loop = False
                     loop_timer = time.time()
 
