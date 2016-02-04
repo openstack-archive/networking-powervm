@@ -22,42 +22,10 @@ from networking_powervm.tests.unit.plugins.ibm.powervm import base
 
 from pypowervm import const as pvm_const
 from pypowervm import exceptions as pvm_exc
-from pypowervm.helpers import log_helper as pvm_log
-from pypowervm.tests import test_fixtures as pvm_fx
-from pypowervm.tests.test_utils import pvmhttp
-from pypowervm.wrappers import network as pvm_net
-
-NET_BR_FILE = 'fake_network_bridge.txt'
-VM_FILE = 'fake_lpar_feed.txt'
-CNA_FILE = 'fake_cna.txt'
-VSW_FILE = 'fake_virtual_switch.txt'
-VIOS_FILE = 'fake_vios_feed3.txt'
 
 
 class UtilsTest(base.BasePVMTestCase):
     """Tests the utility functions for the Shared Ethernet Adapter Logic."""
-
-    def setUp(self):
-        super(UtilsTest, self).setUp()
-
-        self.adpt = self.useFixture(
-            pvm_fx.AdapterFx(traits=pvm_fx.LocalPVMTraits)).adpt
-
-        def resp(file_name):
-            return pvmhttp.load_pvm_resp(
-                file_name, adapter=self.adpt).get_response()
-
-        self.net_br_resp = resp(NET_BR_FILE)
-        self.vm_feed_resp = resp(VM_FILE)
-        self.cna_resp = resp(CNA_FILE)
-        self.vswitch_resp = resp(VSW_FILE)
-        self.vios_feed_resp = resp(VIOS_FILE)
-
-    def _mock_feed(self, feed):
-        """Helper method to make the mock adapter."""
-        # Sets the feed to be the response on the adapter for a single read
-        self.adpt.read.return_value = feed
-        self.adpt.read_by_href.return_value = feed
 
     def __cna(self, mac):
         """Create a Client Network Adapter mock."""
@@ -94,50 +62,66 @@ class UtilsTest(base.BasePVMTestCase):
         self.assertEqual(EXPECTED, utils.norm_mac("12:34:56:78:90:AB"))
         self.assertEqual(EXPECTED, utils.norm_mac("1234567890AB"))
 
-    def test_list_bridges(self):
+    @mock.patch('pypowervm.wrappers.network.NetBridge.wrap')
+    def test_list_bridges(self, mock_wrap):
         """Test that we can load the bridges in properly."""
-        self._mock_feed(self.net_br_resp)
+        mock_wrap.return_value = ['br1', 'br2']
+        mock_adpt = mock.Mock()
+        mock_adpt.read = mock.Mock()
 
         # Assert that two are read in
-        bridges = utils.list_bridges(self.adpt, 'host_uuid')
+        bridges = utils.list_bridges(mock_adpt, 'host_uuid')
         self.assertEqual(2, len(bridges))
-        self.assertTrue(isinstance(bridges[0], pvm_net.NetBridge))
 
-    def test_list_vm_entries(self):
+    @mock.patch('pypowervm.wrappers.logical_partition.LPAR.wrap')
+    def test_list_vm_entries(self, mock_wrap):
         """Validates that VMs can be iterated on properly."""
-        self._mock_feed(self.vm_feed_resp)
+        feed = mock.Mock(object)
+        feed.entries = ['1', '2', '3']
+        vm_feed = mock.Mock(object)
+        vm_feed.feed = feed
+        adpt = mock.Mock()
+        adpt.read = mock.Mock(return_value=vm_feed)
+
+        # Mock the pypowervm wrapper to just return what it's passed
+        mock_wrap.side_effect = lambda arg: arg
 
         # List the VMs and make some assertions
-        vm_list = utils._list_vm_entries(self.adpt, 'host_uuid')
-        self.assertEqual(17, len(vm_list))
+        vm_list = utils._list_vm_entries(adpt, 'host_uuid')
+        self.assertEqual(3, len(vm_list))
         for vm in vm_list:
-            self.assertIsNotNone(vm.uuid)
+            self.assertIsNotNone(vm)
+        self.assertEqual(3, mock_wrap.call_count)
 
-    @mock.patch('pypowervm.adapter.Adapter.read')
-    def test_get_vswitch_map(self, mock_read):
-        self._mock_feed(self.vswitch_resp)
-        resp = utils.get_vswitch_map(self.adpt, 'host_uuid')
-        self.assertEqual('https://9.1.2.3:12443/rest/api/uom/ManagedSystem/'
-                         'c5d782c7-44e4-3086-ad15-b16fb039d63b/VirtualSwitch/'
-                         'e1a852cb-2be5-3a51-9147-43761bc3d720',
-                         resp[0])
-        mock_read.assert_called_once_with('ManagedSystem',
-                                          child_type='VirtualSwitch',
-                                          root_id='host_uuid')
+    @mock.patch('pypowervm.wrappers.network.VSwitch.wrap')
+    def test_get_vswitch_map(self, mock_wrap):
+        # Create mocks
+        mock_adpt = mock.Mock()
+        mock_adpt.read = mock.Mock()
+        vswitch = mock.Mock()
+        vswitch.related_href = 'http://9.1.2.3/test'
+        vswitch.switch_id = 0
+        mock_wrap.return_value = [vswitch]
+
+        # Run test and verify results
+        resp = utils.get_vswitch_map(mock_adpt, 'host_uuid')
+        self.assertEqual('http://9.1.2.3/test', resp[0])
+        mock_adpt.read.assert_called_once_with('ManagedSystem',
+                                               child_type='VirtualSwitch',
+                                               root_id='host_uuid')
 
     def test_find_nb_for_cna(self):
-        self._mock_feed(self.vswitch_resp)
+        # Create mocks
+        nb_wrap = mock.Mock()
+        nb_wrap.vswitch_id = '0'
+        nb_wrap.supports_vlan = mock.Mock(return_value=True)
+        nb_wraps = [nb_wrap]
 
-        nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
+        vswitch_map = {'0': 'http://9.1.2.3/vs1',
+                       '1': 'http://9.1.2.3/vs2'}
 
         mock_client_adpt = mock.MagicMock()
-        mock_client_adpt.vswitch_uri = ('https://9.1.2.3:12443/rest/api/uom/'
-                                        'ManagedSystem/'
-                                        'c5d782c7-44e4-3086-ad15-b16fb039d63b/'
-                                        'VirtualSwitch/'
-                                        'e1a852cb-2be5-3a51-9147-43761bc3d720')
-
-        vswitch_map = utils.get_vswitch_map(self.adpt, 'host_uuid')
+        mock_client_adpt.vswitch_uri = ('http://9.1.2.3/vs1')
 
         # Should have a proper URI, so it should match
         resp = utils.find_nb_for_cna(nb_wraps, mock_client_adpt, vswitch_map)
@@ -150,10 +134,11 @@ class UtilsTest(base.BasePVMTestCase):
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 '_list_vm_entries')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
+                '_find_cnas')
     @mock.patch('pypowervm.wrappers.network.CNA.wrap')
-    def test_list_cnas(self, mock_cna_wrap, mock_list_vms):
+    def test_list_cnas(self, mock_cna_wrap, mock_find_cnas, mock_list_vms):
         """Validates that the CNA's can be iterated against."""
-        self._mock_feed(self.cna_resp)
 
         # Override the VM Entries with a fake CNA
         class FakeVM(object):
@@ -165,31 +150,43 @@ class UtilsTest(base.BasePVMTestCase):
         def list_vms(adapter, host_uuid):
             return [vm]
 
+        mock_find_cnas.return_value = [1]
         mock_list_vms.side_effect = list_vms
         mock_cna_wrap.return_value = ['mocked']
 
-        def read(*args, **kwargs):
-            # Ensure we don't have the log helper in the adapter on the call.
-            helpers = kwargs['helpers']
-            if pvm_log.log_helper in helpers:
-                self.fail()
-            return mock.Mock()
-        self.adpt.read = read
-
         # Get the CNAs and validate
-        cnas = utils.list_cnas(self.adpt, 'host_uuid')
+        cnas = utils.list_cnas(None, 'host_uuid')
         self.assertEqual(1, len(cnas))
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
-    def test_parse_sea_mappings(self, mock_list_br):
-        nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
-        mock_list_br.return_value = nb_wraps
+    @mock.patch('pypowervm.wrappers.virtual_io_server.VIOS.wrap')
+    def test_parse_sea_mappings(self, mock_wrap, mock_list_br):
+        # Create mocks
+        class FakeVIOS(object):
+            @property
+            def name(self):
+                return '21-25D0A'
 
-        self._mock_feed(self.vios_feed_resp)
-        resp = utils.parse_sea_mappings(self.adpt, 'host_uuid',
+            @property
+            def related_href(self):
+                return 'https://9.1.2.3/vios1'
+        mock_sea = mock.Mock()
+        mock_sea.dev_name = 'ent8'
+        mock_sea.vio_uri = 'https://9.1.2.3/vios1'
+        nb_wrap = mock.Mock()
+        nb_wrap.seas = [mock_sea]
+        nb_wrap.uuid = '764f3423-04c5-3b96-95a3-4764065400bd'
+        nb_wraps = [nb_wrap]
+        mock_list_br.return_value = nb_wraps
+        mock_adpt = mock.MagicMock()
+        mock_wrap.return_value = [FakeVIOS()]
+
+        # Run actual test
+        resp = utils.parse_sea_mappings(mock_adpt, 'host_uuid',
                                         'default:ent8:21-25D0A')
 
+        # Verify results
         self.assertEqual(1, len(resp.keys()))
         self.assertIn('default', resp)
         self.assertEqual('764f3423-04c5-3b96-95a3-4764065400bd',
@@ -199,40 +196,22 @@ class UtilsTest(base.BasePVMTestCase):
                 'list_bridges')
     def test_parse_sea_mappings_no_bridges(self, mock_list_br):
         mock_list_br.return_value = []
-        self._mock_feed(self.vios_feed_resp)
         self.assertRaises(np_exc.NoNetworkBridges, utils.parse_sea_mappings,
-                          self.adpt, 'host_uuid', '1:2:3')
-
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                'list_bridges')
-    def test_parse_sea_mappings_no_mapping(self, mock_list_br):
-        nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
-        mock_list_br.return_value = nb_wraps
-
-        self._mock_feed(self.vios_feed_resp)
-        resp = utils.parse_sea_mappings(self.adpt, 'host_uuid',
-                                        'default:ent8:21-25D0A')
-
-        self.assertEqual({'default': '764f3423-04c5-3b96-95a3-4764065400bd'},
-                         resp)
+                          None, 'host_uuid', '1:2:3')
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 '_parse_empty_bridge_mapping')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
     def test_parse_call_to_empty_bridge(self, mock_list_br, mock_empty):
-        nb_wraps = pvm_net.NetBridge.wrap(self.net_br_resp)
-        mock_list_br.return_value = nb_wraps
+        mock_list_br.return_value = ['br1']
 
-        self._mock_feed(self.vios_feed_resp)
-        utils.parse_sea_mappings(self.adpt, 'host_uuid', '')
+        utils.parse_sea_mappings(None, 'host_uuid', '')
 
         # Make sure the _parse_empty_bridge_mapping method was called
         self.assertEqual(1, mock_empty.call_count)
 
     def test_parse_empty_bridge_mappings(self):
-        self._mock_feed(self.vios_feed_resp)
-
         proper_wrap = mock.MagicMock()
         proper_wrap.uuid = '5'
         resp = utils._parse_empty_bridge_mapping([proper_wrap])
@@ -252,8 +231,6 @@ class UtilsTest(base.BasePVMTestCase):
             cna = mock.MagicMock()
             cna.refresh.return_value = cna
             return cna
-
-        self._mock_feed(self.vios_feed_resp)
 
         # Attempt happy path
         cna = build_mock()
