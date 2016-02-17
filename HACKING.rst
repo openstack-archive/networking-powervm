@@ -9,6 +9,9 @@ Networking-PowerVM Specific Commandments
 ----------------------------------------
 - Follow the Neutron HACKING.rst
 
+- [P301] LOG.warn() is not allowed. Use LOG.warning()
+- [P302] Deprecated library function os.popen()
+
 Creating Unit Tests
 -------------------
 For every new feature, unit tests should be created that both test and

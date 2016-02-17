@@ -36,6 +36,7 @@ from pypowervm import util as pvm_util
 from pypowervm.utils import uuid as pvm_uuid
 
 from networking_powervm.plugins.ibm.agent.powervm.i18n import _
+from networking_powervm.plugins.ibm.agent.powervm.i18n import _LE
 from networking_powervm.plugins.ibm.agent.powervm.i18n import _LI
 from networking_powervm.plugins.ibm.agent.powervm.i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import utils
@@ -173,8 +174,8 @@ class CNAEventHandler(pvm_adpt.EventHandler):
             if not pvm_util.is_instance_path(uri):
                 return []
         except Exception:
-            LOG.warn(_LW('Unable to parse URI %s for provision request '
-                         'assessment.'), uri)
+            LOG.warning(_LW('Unable to parse URI %s for provision request '
+                            'assessment.'), uri)
             return []
 
         # The event queue will only return URI's for 'root like' objects.
@@ -307,7 +308,7 @@ class BasePVMNeutronAgent(object):
                                         self.agent_state)
             self.agent_state.pop('start_flag', None)
         except Exception:
-            LOG.exception(_("Failed reporting state!"))
+            LOG.exception(_LE("Failed reporting state!"))
 
     def update_device_up(self, device):
         """Calls back to neutron that a device is alive."""
@@ -491,8 +492,8 @@ class BasePVMNeutronAgent(object):
 
             except Exception as e:
                 LOG.exception(e)
-                LOG.warn(_LW("Error has been encountered and logged.  The "
-                             "agent will retry again."))
+                LOG.warning(_LW("Error has been encountered and logged.  The "
+                                "agent will retry again."))
                 # sleep for a while and re-loop
                 time.sleep(ACONF.exception_interval)
 

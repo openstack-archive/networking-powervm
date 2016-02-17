@@ -155,8 +155,8 @@ class PVIDLooper(object):
                     return
 
         except Exception as e:
-            LOG.warn(_LW("An error occurred while attempting to update the "
-                         "PVID of the virtual NIC."))
+            LOG.warning(_LW("An error occurred while attempting to update the "
+                            "PVID of the virtual NIC."))
             LOG.exception(e)
 
         # Increment the request count.
@@ -365,9 +365,9 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
                 # VLANs the ones that are no longer needed.
                 vlans_to_del = existing_vlans - req_vlans
                 for vlan_to_del in vlans_to_del:
-                    LOG.warn(_LW("Cleaning up VLAN %(vlan)s from the system.  "
-                                 "It is no longer in use."),
-                             {'vlan': vlan_to_del})
+                    LOG.warning(_LW("Cleaning up VLAN %(vlan)s from the "
+                                    "system. It is no longer in use."),
+                                {'vlan': vlan_to_del})
                     net_br.remove_vlan_from_nb(self.adapter, self.host_uuid,
                                                nb.uuid, vlan_to_del)
 
@@ -423,10 +423,10 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         """
         nb_uuid = self.br_map.get(dev.get('physical_network'))
         if not nb_uuid and emit_warnings:
-            LOG.warn(_LW("Unable to determine the Network Bridge (Shared "
-                         "Ethernet Adapter) for physical network %s.  Will "
-                         "be unable to determine appropriate provisioning "
-                         "action."), dev.get('physical_network'))
+            LOG.warning(_LW("Unable to determine the Network Bridge (Shared "
+                            "Ethernet Adapter) for physical network %s.  Will "
+                            "be unable to determine appropriate provisioning "
+                            "action."), dev.get('physical_network'))
         return nb_uuid, dev.get('segmentation_id')
 
 

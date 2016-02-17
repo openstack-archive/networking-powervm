@@ -139,10 +139,10 @@ def _parse_empty_bridge_mapping(bridges):
     if len(bridges) > 1:
         raise np_exc.MultiBridgeNoMapping()
 
-    LOG.warn(_LW('The bridge_mappings for the agent was not specified.  '
-                 'There was exactly one Network Bridge on the system.  '
-                 'Agent is assuming the default network is backed by the '
-                 'single Network Bridge.'))
+    LOG.warning(_LW('The bridge_mappings for the agent was not specified.  '
+                    'There was exactly one Network Bridge on the system.  '
+                    'Agent is assuming the default network is backed by the '
+                    'single Network Bridge.'))
     return {'default': bridges[0].uuid}
 
 
@@ -322,7 +322,7 @@ def list_bridges(adapter, host_uuid):
     net_bridges = pvm_net.NetBridge.wrap(resp)
 
     if len(net_bridges) == 0:
-        LOG.warn(_LW('No NetworkBridges detected on the host.'))
+        LOG.warning(_LW('No NetworkBridges detected on the host.'))
 
     return net_bridges
 
