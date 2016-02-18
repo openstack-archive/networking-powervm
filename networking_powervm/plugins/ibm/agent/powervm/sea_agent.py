@@ -307,7 +307,8 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         # Make sure that the provision requests VLAN is captured in the
         # nb_req_vlans list...so that the VLAN is not accidentally removed.
         for req in prov_reqs:
-            nb_uuid, req_vlan = self._get_nb_and_vlan(req, emit_warnings=False)
+            nb_uuid, req_vlan = self._get_nb_and_vlan(req.rpc_device,
+                                                      emit_warnings=False)
             nb_req_vlans[nb_uuid].add(req_vlan)
 
         # We should clean up old VLANs as well.  However, we only want to clean
