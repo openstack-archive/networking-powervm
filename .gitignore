@@ -8,3 +8,4 @@ networking_powervm.egg-info/
 doc/build
 AUTHORS
 ChangeLog
+.venv
