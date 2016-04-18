@@ -54,7 +54,7 @@ agent_opts = [
     cfg.IntOpt('polling_interval', default=2,
                help=_("The number of seconds the agent will wait between "
                       "polling for local device changes.")),
-    cfg.IntOpt('heal_and_optimize_interval', default=300,
+    cfg.IntOpt('heal_and_optimize_interval', default=1800,
                help=_('The number of seconds the agent should wait between '
                       'heal/optimize intervals.  Should be higher than the '
                       'polling_interval as it runs in the nearest polling '
