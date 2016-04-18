@@ -27,11 +27,11 @@ from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
 from pypowervm.tasks import network_bridger as net_br
 
+from networking_powervm._i18n import _LE
+from networking_powervm._i18n import _LI
+from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
 from networking_powervm.plugins.ibm.agent.powervm import constants as p_const
-from networking_powervm.plugins.ibm.agent.powervm.i18n import _LE
-from networking_powervm.plugins.ibm.agent.powervm.i18n import _LI
-from networking_powervm.plugins.ibm.agent.powervm.i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import utils
 
 import sys

@@ -35,10 +35,10 @@ from pypowervm.helpers import vios_busy as vio_hlp
 from pypowervm import util as pvm_util
 from pypowervm.utils import uuid as pvm_uuid
 
-from networking_powervm.plugins.ibm.agent.powervm.i18n import _
-from networking_powervm.plugins.ibm.agent.powervm.i18n import _LE
-from networking_powervm.plugins.ibm.agent.powervm.i18n import _LI
-from networking_powervm.plugins.ibm.agent.powervm.i18n import _LW
+from networking_powervm._i18n import _
+from networking_powervm._i18n import _LE
+from networking_powervm._i18n import _LI
+from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import utils
 
 import time

@@ -16,6 +16,7 @@
 
 from oslo_log import log as logging
 
+from pypowervm import const as pvm_const
 from pypowervm import exceptions as pvm_exc
 from pypowervm.helpers import log_helper as pvm_log
 from pypowervm import util as pvm_util
@@ -25,8 +26,8 @@ from pypowervm.wrappers import managed_system as pvm_ms
 from pypowervm.wrappers import network as pvm_net
 from pypowervm.wrappers import virtual_io_server as pvm_vios
 
+from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
-from networking_powervm.plugins.ibm.agent.powervm.i18n import _LW
 
 LOG = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ def parse_sea_mappings(adapter, host_uuid, mapping):
     vio_feed = adapter.read(pvm_ms.System.schema_type,
                             root_id=host_uuid,
                             child_type=pvm_vios.VIOS.schema_type,
-                            xag=[pvm_vios.VIOS.xags.NETWORK])
+                            xag=[pvm_const.XAG.VIO_NET])
     vio_wraps = pvm_vios.VIOS.wrap(vio_feed)
 
     # Response dictionary
