@@ -17,6 +17,8 @@
 import mock
 
 from oslo_config import cfg
+from pypowervm.helpers import log_helper as log_hlp
+from pypowervm.helpers import vios_busy as vio_hlp
 from pypowervm.tests import test_fixtures as pvm_fx
 
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
@@ -30,6 +32,43 @@ class FakeExc(Exception):
 def FakeNPort(mac, segment_id, phys_network):
     return {'mac_address': mac, 'segmentation_id': segment_id,
             'physical_network': phys_network}
+
+
+class TestAgentBaseInit(base.BasePVMTestCase):
+    """A test class to validate the set up of the agent with the API.
+
+    This is typically mocked out in fixtures otherwise.
+    """
+
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
+                'utils.get_host_uuid')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
+                'CNAEventHandler')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
+                'BasePVMNeutronAgent.setup_rpc')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
+                'BasePVMNeutronAgent.parse_bridge_mappings')
+    @mock.patch('pypowervm.adapter.Adapter')
+    @mock.patch('pypowervm.adapter.Session')
+    def test_setup_adapter(self, mock_session, mock_adapter,
+                           mock_parse_mappings, mock_setup_rpc,
+                           mock_evt_handler, mock_host_uuid):
+        # Set up the mocks.
+        mock_evt_listener = (mock_session.return_value.get_event_listener.
+                             return_value)
+        mock_evt_handler.return_value = 'evt_hdlr'
+        mock_host_uuid.return_value = 'host_uuid'
+
+        # Setup and invoke
+        neut_agt = agent_base.BasePVMNeutronAgent('bin', 'type')
+
+        # Validate
+        mock_session.assert_called_once_with(conn_tries=300)
+        mock_adapter.assert_called_once_with(
+            mock_session.return_value,
+            helpers=[log_hlp.log_helper, vio_hlp.vios_busy_retry_helper])
+        self.assertEqual('host_uuid', neut_agt.host_uuid)
+        mock_evt_listener.subscribe.assert_called_once_with('evt_hdlr')
 
 
 class TestAgentBase(base.BasePVMTestCase):

@@ -248,13 +248,16 @@ class BasePVMNeutronAgent(object):
 
     def setup_adapter(self):
         """Configures the pypowervm adapter and utilities."""
+        # Build the adapter.  May need to attempt the connection multiple times
+        # in case the REST server is starting.
+        session = pvm_adpt.Session(conn_tries=300)
         self.adapter = pvm_adpt.Adapter(
-            pvm_adpt.Session(), helpers=[log_hlp.log_helper,
-                                         vio_hlp.vios_busy_retry_helper])
+            session, helpers=[log_hlp.log_helper,
+                              vio_hlp.vios_busy_retry_helper])
         self.host_uuid = utils.get_host_uuid(self.adapter)
 
         # Add an event handler to the session.
-        evt_listener = self.adapter.session.get_event_listener()
+        evt_listener = session.get_event_listener()
         self._cna_event_handler = CNAEventHandler(self)
         evt_listener.subscribe(self._cna_event_handler)
 
