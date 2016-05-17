@@ -1,27 +1,27 @@
 # Translations template for networking-powervm.
-# Copyright (C) 2015 ORGANIZATION
+# Copyright (C) 2016 IBM Corp.
 # This file is distributed under the same license as the networking-powervm
 # project.
-# Automatically generated, 2015.
+# Automatically generated, 2016.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 0.0.1.dev93\n"
+"Project-Id-Version: networking-powervm 1.0.0.0rc2.dev34\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2015-10-06 14:03-0500\n"
-"PO-Revision-Date: 2015-10-06 14:03-0500\n"
+"POT-Creation-Date: 2016-04-14 09:09-0400\n"
+"PO-Revision-Date: 2016-04-14 09:09-0400\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.0\n"
+"Generated-By: Babel 2.3.2\n"
 
-#: networking_powervm/plugins/ibm/agent/powervm/fake_sea_agent.py:164
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:311
 msgid "Failed reporting state!"
 msgstr "未能报告状态！"
 
-#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:248
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:174
 #, python-format
 msgid ""
 "Unable to update PVID to %(pvid)s for MAC Address %(mac)s as there was no"
@@ -30,8 +30,12 @@ msgstr ""
 "对于 MAC 地址 %(mac)s，无法将 PVID 更新为 %(pvid)s，因为找不到"
 "有效的网络适配器。"
 
-#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:256
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:182
 #, python-format
 msgid "Existing Adapter %(num)d: mac %(mac)s, pvid %(pvid)d"
 msgstr "现有适配器 %(num)d：MAC %(mac)s，PVID %(pvid)d"
 
+
+# ENGL1SH_VERS10N 31037_2 DO NOT REMOVE OR CHANGE THIS LINE
+# T9N_SRC_ID 36
+# T9N_SH1P_STR1NG PV131AAP001 3

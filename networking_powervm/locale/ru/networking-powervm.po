@@ -1,23 +1,23 @@
 # Translations template for networking-powervm.
-# Copyright (C) 2015 ORGANIZATION
+# Copyright (C) 2016 IBM Corp.
 # This file is distributed under the same license as the networking-powervm
 # project.
-# Automatically generated, 2015.
+# Automatically generated, 2016.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 0.0.1.dev93\n"
+"Project-Id-Version: networking-powervm 1.0.0.0rc2.dev34\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2015-10-06 14:03-0500\n"
-"PO-Revision-Date: 2015-10-06 14:03-0500\n"
+"POT-Creation-Date: 2016-04-14 09:09-0400\n"
+"PO-Revision-Date: 2016-04-14 09:09-0400\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.0\n"
+"Generated-By: Babel 2.3.2\n"
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:47
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:52
 msgid ""
 "The number of seconds agent will wait between polling when exception is "
 "caught"
@@ -25,16 +25,15 @@ msgstr ""
 "Время ожидания агента (в секундах) между опросами при "
 "исключительной ситуации"
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:50
-#: networking_powervm/plugins/ibm/agent/powervm/fake_sea_agent.py:46
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:55
 msgid ""
 "The number of seconds the agent will wait between polling for local "
 "device changes."
 msgstr ""
-"Интервал (секундах), применяемый агентом для опроса "
-"изменений локальных устройств."
+"Интервал опроса агентом локальных устройств на предмет наличия "
+"изменений."
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:53
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:58
 msgid ""
 "The number of seconds the agent should wait between heal/optimize "
 "intervals.  Should be higher than the polling_interval as it runs in the "
@@ -43,10 +42,6 @@ msgstr ""
 "Время в секундах, в течение которого агент должен ожидать между интервалами "
 "исправления/оптимизации. Это значение должно быть больше значения polling_interval, так как "
 "процесс выполняется в ближайшем цикле опроса."
-
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:212
-msgid "Failed reporting state!"
-msgstr "Не удалось определить состояние!"
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:21
 #, python-format
@@ -68,7 +63,7 @@ msgid ""
 "proceeding."
 msgstr ""
 "Система содержит несколько сетевых мостов, однако параметры bridge_mapping"
-"не указаны. Настройте bridge_mappings перед "
+" не указаны. Настройте bridge_mappings перед "
 "продолжением."
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:36
@@ -80,3 +75,7 @@ msgstr ""
 "Не найдено устройство %(dev)s на виртуальном сервере ввода-вывода %(vios)s. Невозможно "
 "настроить физическую сеть %(phys_net)s."
 
+
+# ENGL1SH_VERS10N 55289_3 DO NOT REMOVE OR CHANGE THIS LINE
+# T9N_SRC_ID 52
+# T9N_SH1P_STR1NG PV131AAP001 3

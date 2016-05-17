@@ -1,41 +1,41 @@
 # Translations template for networking-powervm.
-# Copyright (C) 2015 ORGANIZATION
+# Copyright (C) 2016 IBM Corp.
 # This file is distributed under the same license as the networking-powervm
 # project.
-# Automatically generated, 2015.
+# Automatically generated, 2016.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 0.0.1.dev93\n"
+"Project-Id-Version: networking-powervm 1.0.0.0rc2.dev34\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2015-10-06 14:03-0500\n"
-"PO-Revision-Date: 2015-10-06 14:03-0500\n"
+"POT-Creation-Date: 2016-04-14 09:09-0400\n"
+"PO-Revision-Date: 2016-04-14 09:09-0400\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.0\n"
+"Generated-By: Babel 2.3.2\n"
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:245
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:344
 #, python-format
 msgid ""
 "Neutron API indicated port update for %(mac)s.  Checking if hosted by "
 "this system."
 msgstr ""
 "L'API Neutron a signalé une mise à jour de port pour %(mac)s. "
-"Vérification en cours pour pour savoir s'il est hébergé par ce système. "
+"Vérification en cours pour pour savoir s'il est hébergé par ce système."
 
-#: networking_powervm/plugins/ibm/agent/powervm/fake_sea_agent.py:227
-msgid "Simulated Shared Ethernet Agent initialized and running"
-msgstr "Agent Ethernet partagé simulé initialisé et en cours d'exécution"
-
-#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:225
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:151
 #, python-format
 msgid "Sending update device for %s"
 msgstr "Envoi de mise à jour d'unité pour %s"
 
-#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:526
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:441
 msgid "Shared Ethernet Agent initialized and running"
 msgstr "Agent Ethernet partagé initialisé et en cours d'exécution"
 
+
+# ENGL1SH_VERS10N 35209_2 DO NOT REMOVE OR CHANGE THIS LINE
+# T9N_SRC_ID 24
+# T9N_SH1P_STR1NG PV131AAP001 3
