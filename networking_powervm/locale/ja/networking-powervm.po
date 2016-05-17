@@ -1,31 +1,30 @@
 # Translations template for networking-powervm.
-# Copyright (C) 2015 ORGANIZATION
+# Copyright (C) 2016 IBM Corp.
 # This file is distributed under the same license as the networking-powervm
 # project.
-# Automatically generated, 2015.
+# Automatically generated, 2016.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 0.0.1.dev93\n"
+"Project-Id-Version: networking-powervm 1.0.0.0rc2.dev34\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2015-10-06 14:03-0500\n"
-"PO-Revision-Date: 2015-10-06 14:03-0500\n"
+"POT-Creation-Date: 2016-04-14 09:09-0400\n"
+"PO-Revision-Date: 2016-04-14 09:09-0400\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.0\n"
+"Generated-By: Babel 2.3.2\n"
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:47
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:52
 msgid ""
 "The number of seconds agent will wait between polling when exception is "
 "caught"
 msgstr ""
 "例外の検出時にポーリング間でエージェントが待機する時間 (秒)。"
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:50
-#: networking_powervm/plugins/ibm/agent/powervm/fake_sea_agent.py:46
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:55
 msgid ""
 "The number of seconds the agent will wait between polling for local "
 "device changes."
@@ -33,7 +32,7 @@ msgstr ""
 "ローカル・デバイスの変更のポーリング間にエージェントが待機する"
 "間隔 (秒)。"
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:53
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:58
 msgid ""
 "The number of seconds the agent should wait between heal/optimize "
 "intervals.  Should be higher than the polling_interval as it runs in the "
@@ -43,14 +42,10 @@ msgstr ""
 "エージェントは最も近いポーリング・ループで実行されるため、この値は"
 "polling_interval より大きくなければなりません。"
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:212
-msgid "Failed reporting state!"
-msgstr "状態レポートに失敗しました。"
-
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:21
 #, python-format
 msgid "Expected exactly one host; found %(host_count)d"
-msgstr "1 つのホストのみが予期されていましたが、%(host_count)d 個が見つかりました"
+msgstr "予期されたホストは 1 つのみです。検出されたのは %(host_count)d 個です"
 
 #: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:25
 msgid ""
@@ -78,3 +73,7 @@ msgstr ""
 "Virtual I/O Server %(vios)s 上にデバイス %(dev)s が見つかりませんでした。"
 "物理ネットワーク %(phys_net)s をセットアップできません。"
 
+
+# ENGL1SH_VERS10N 55289_3 DO NOT REMOVE OR CHANGE THIS LINE
+# T9N_SRC_ID 52
+# T9N_SH1P_STR1NG PV131AAP001 3
