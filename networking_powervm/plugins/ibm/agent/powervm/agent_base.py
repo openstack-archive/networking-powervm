@@ -511,6 +511,11 @@ class BasePVMNeutronAgent(object):
         # Convert the ports to devices.
         u_ports = self._list_updated_ports()
         dev_list = [x.get('mac_address') for x in u_ports]
+        # if there are no ports to update, avoid get device details
+        if not dev_list:
+            return []
+        LOG.debug("get device details: %s", dev_list)
+
         devices = self.get_devices_details_list(dev_list)
 
         # Build the network devices

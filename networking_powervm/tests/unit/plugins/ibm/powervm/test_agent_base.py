@@ -184,6 +184,8 @@ class TestAgentBase(base.BasePVMTestCase):
         mock_list_uports.return_value = []
         self.assertEqual([], agent.build_prov_requests_from_neutron())
 
+        agent.plugin_rpc.get_devices_details_list.assert_not_called()
+
         cfg.CONF.set_override('host', 'fake_host')
 
         def build_port(pid, use_good_host=True):
@@ -199,6 +201,7 @@ class TestAgentBase(base.BasePVMTestCase):
         agent.plugin_rpc.get_devices_details_list.return_value = devs
 
         resp = agent.build_prov_requests_from_neutron()
+        agent.plugin_rpc.get_devices_details_list.assert_called()
         self.assertEqual(2, len(resp))
 
 
