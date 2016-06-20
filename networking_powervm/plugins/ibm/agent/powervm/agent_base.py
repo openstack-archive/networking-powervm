@@ -26,9 +26,9 @@ from oslo_service import loopingcall
 
 from neutron.agent.common import config as a_config
 from neutron.agent import rpc as agent_rpc
-from neutron.common import constants as q_const
 from neutron.common import topics
 from neutron import context as ctx
+from neutron_lib import constants as q_const
 from pypowervm import adapter as pvm_adpt
 from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp

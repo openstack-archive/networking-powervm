@@ -23,8 +23,8 @@ from networking_powervm.plugins.ibm.agent.powervm import sea_agent
 from networking_powervm.tests.unit.plugins.ibm.powervm import base
 from pypowervm.tests import test_fixtures as pvm_fx
 
-from neutron.common import constants as q_const
 from neutron import context as ctx
+from neutron_lib import constants as q_const
 
 
 def FakeClientAdpt(mac, pvid, tagged_vlans):
