@@ -32,6 +32,7 @@ from neutron_lib import constants as q_const
 from pypowervm import adapter as pvm_adpt
 from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp
+from pypowervm.tasks import partition as pvm_par
 from pypowervm import util as pvm_util
 from pypowervm.utils import uuid as pvm_uuid
 
@@ -361,26 +362,52 @@ class BasePVMNeutronAgent(object):
     def _build_system_prov_requests(self):
         """Builds ProvisionRequests for the entire system.
 
-        It is expected this is used in the heal_and_optimize code path.  After
-        these devices are pulled, something will need to reset their states
-        back to 'up'.  That is the requirement of the implementing class.
+        This is used in the heal_and_optimize code path.  After these devices
+        are pulled, something will need to reset their states back to 'up'.
+        That is the requirement of the implementing class.
+
+        :return: The list of ProvisionRequest objects for the entire system.
+        :return: List of LPAR UUIDs on the system.  Will not include the VIOS
+                 uuids (as they are not LPARs) or the MGMT VM (if it is an
+                 LPAR).  This list is meant to represent the VMs that client
+                 workload are running on.
+        :return: The list of all CNAs on the system.  This includes the LPARs'
+                 CNAs (either Trunk adapters or pure Client Network Adapters).
+                 It includes the VIOS CNAs (but not Trunk Adapters), because
+                 those are the bridges out to the external network.
+
+                 The Trunk Adapters on the VIOS are not included because the
+                 heal_and_optimize should be cleaning VLANs off of those.
+                 The overall CNA list is supposed to indicate what is *needed*
+                 by the system.
         """
         prov_reqs = []
 
         # Get all the LPARs...we need to match up the client adapters with a
-        # given device.
-        lpar_uuids = utils.list_lpar_uuids(self.adapter, self.host_uuid)
-        overall_cnas = []
+        # given device.  Ignore the mgmt LPAR though.
+        lpar_wraps = pvm_par.get_partitions(
+            self.adapter, lpars=True, vioses=False)
+
+        # The lpar_uuids is simply the client VM lpar uuids.  Don't includ mgmt
+        overall_cnas, request_cnas = [], []
         lpar_cna_map = {}
-        for lpar_uuid in lpar_uuids:
-            lpar_cna_map[lpar_uuid] = utils.list_cnas(
-                self.adapter, self.host_uuid, lpar_uuid=lpar_uuid)
-            overall_cnas.extend(lpar_cna_map[lpar_uuid])
+
+        # Don't use lpar_uuids, as we want to include mgmt VM for overall_cnas
+        for lpar_wrap in lpar_wraps:
+            lpar_cnas = utils.list_cnas(
+                self.adapter, self.host_uuid, lpar_uuid=lpar_wrap.uuid)
+            overall_cnas.extend(lpar_cnas)
+
+            # lpar_cna_map is used to build provision requests.  We won't have
+            # a provision request for the mgmt VM.
+            if not lpar_wrap.is_mgmt_partition:
+                lpar_cna_map[lpar_wrap.uuid] = lpar_cnas
+                request_cnas.extend(lpar_cnas)
 
         # Get all the devices that Neutron knows for this host.  Note that
         # we pass in all of the macs on the system.  For VMs that neutron does
         # not know about, we get back an empty structure with just the mac.
-        client_macs = [utils.norm_mac(x.mac) for x in overall_cnas]
+        client_macs = [utils.norm_mac(x.mac) for x in request_cnas]
         devs = self.get_devices_details_list(client_macs)
 
         # Build out all of the devices that we have available to us.  Some
@@ -391,7 +418,7 @@ class BasePVMNeutronAgent(object):
                 if dev:
                     prov_reqs.append(ProvisionRequest(dev, lpar_uuid))
 
-        return prov_reqs, lpar_uuids, overall_cnas
+        return prov_reqs, list(lpar_cna_map.keys()), overall_cnas
 
     def _find_dev(self, cna, devs):
         cna_mac = utils.norm_mac(cna.mac)
@@ -568,7 +595,7 @@ class BasePVMNeutronAgent(object):
         :param provision_reqs: The list of ports to provision.
         """
         try:
-            LOG.debug("Provisioning ports for mac addresses [ %s ]" %
+            LOG.debug("Provisioning ports for mac addresses [ %s ]",
                       ' '.join([x.mac_address for x in provision_reqs]))
             self.provision_devices(provision_reqs)
         except Exception:

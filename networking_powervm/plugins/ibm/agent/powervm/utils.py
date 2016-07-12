@@ -19,6 +19,7 @@ from oslo_log import log as logging
 from pypowervm import const as pvm_const
 from pypowervm import exceptions as pvm_exc
 from pypowervm.helpers import log_helper as pvm_log
+from pypowervm.tasks import partition as pvm_par
 from pypowervm import util as pvm_util
 from pypowervm.utils import retry as pvm_retry
 from pypowervm.wrappers import logical_partition as pvm_lpar
@@ -229,16 +230,6 @@ def get_vswitch_map(adapter, host_uuid):
     return resp
 
 
-def list_lpar_uuids(adapter, host_uuid):
-    """Returns a list of all of the VM UUIDs.
-
-    :param adapter: The pypowervm adapter.
-    :param host_uuid: The UUID for the host system.
-    :return: List of UUIDs for the VMs.
-    """
-    return [x.uuid for x in _list_vm_entries(adapter, host_uuid)]
-
-
 def list_cnas(adapter, host_uuid, lpar_uuid=None):
     """Lists all of the Client Network Adapters for the running VMs.
 
@@ -251,7 +242,8 @@ def list_cnas(adapter, host_uuid, lpar_uuid=None):
     if lpar_uuid:
         vm_uuids = [lpar_uuid]
     else:
-        vm_uuids = [x.uuid for x in _list_vm_entries(adapter, host_uuid)]
+        vm_uuids = [x.uuid for x in pvm_par.get_partitions(adapter,
+                                                           vioses=False)]
 
     # Loop through the VMs
     total_cnas = []
@@ -288,25 +280,6 @@ def _find_cnas(adapter, vm_uuid):
             return []
         else:
             raise
-
-
-@pvm_retry.retry()
-def _list_vm_entries(adapter, host_uuid):
-    """
-    Returns a List of all of the Client (non-VIOS) VMs on the system.
-    Does not take into account whether or not it is managed by
-    OpenStack.
-
-    :param adapter: The pypowervm adapter.
-    :param host_uuid: The UUID for the host system.
-    """
-    vm_feed = adapter.read(pvm_ms.System.schema_type, root_id=host_uuid,
-                           child_type=pvm_lpar.LPAR.schema_type)
-    vm_entries = vm_feed.feed.entries
-    vms = []
-    for vm_entry in vm_entries:
-        vms.append(pvm_lpar.LPAR.wrap(vm_entry))
-    return vms
 
 
 @pvm_retry.retry()

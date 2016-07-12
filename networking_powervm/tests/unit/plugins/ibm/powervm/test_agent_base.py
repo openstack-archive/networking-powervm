@@ -40,6 +40,7 @@ class TestAgentBaseInit(base.BasePVMTestCase):
     This is typically mocked out in fixtures otherwise.
     """
 
+    @mock.patch('pypowervm.tasks.partition.get_mgmt_partition')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'utils.get_host_uuid')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
@@ -52,12 +53,13 @@ class TestAgentBaseInit(base.BasePVMTestCase):
     @mock.patch('pypowervm.adapter.Session')
     def test_setup_adapter(self, mock_session, mock_adapter,
                            mock_parse_mappings, mock_setup_rpc,
-                           mock_evt_handler, mock_host_uuid):
+                           mock_evt_handler, mock_host_uuid, mock_get_mgmt):
         # Set up the mocks.
         mock_evt_listener = (mock_session.return_value.get_event_listener.
                              return_value)
         mock_evt_handler.return_value = 'evt_hdlr'
         mock_host_uuid.return_value = 'host_uuid'
+        mock_get_mgmt.return_value = mock.Mock(uuid='mgmt_uuid')
 
         # Setup and invoke
         neut_agt = agent_base.BasePVMNeutronAgent('bin', 'type')
@@ -97,17 +99,21 @@ class TestAgentBase(base.BasePVMTestCase):
                 'BasePVMNeutronAgent.get_devices_details_list')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_cnas')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                'list_lpar_uuids')
-    def test_build_system_prov_requests(self, mock_lpar_list, mock_list_cnas,
+    @mock.patch('pypowervm.tasks.partition.get_partitions')
+    def test_build_system_prov_requests(self, mock_get_parts, mock_list_cnas,
                                         mock_dev_details):
         agent = self.build_test_agent()
 
         # Mock data
-        mock_lpar_list.return_value = ['uuid1', 'uuid2', 'uuid3']
+        mock_get_parts.return_value = [
+            mock.Mock(uuid='uuid1', is_mgmt_partition=False),
+            mock.Mock(uuid='uuid2', is_mgmt_partition=False),
+            mock.Mock(uuid='uuid3', is_mgmt_partition=False),
+            mock.Mock(uuid='mgmt_uuid', is_mgmt_partition=True)]
         mock_list_cnas.side_effect = [[mock.Mock(mac='aabbccddeefd')],
                                       [mock.Mock(mac='aabbccddeefe')],
-                                      [mock.Mock(mac='aabbccddeeff')]]
+                                      [mock.Mock(mac='aabbccddeeff')],
+                                      [mock.Mock(mac='aabbccddeef1')]]
         mock_dev_details.return_value = [
             {'device': 'aa:bb:cc:dd:ee:fd'}, {'mac_address': 'aabbccddeefe'},
             {'mac_address': 'aa:bb:cc:dd:ee:ff'}]
@@ -117,8 +123,8 @@ class TestAgentBase(base.BasePVMTestCase):
 
         # Validation
         self.assertEqual(2, len(prov_reqs))
-        self.assertEqual(['uuid1', 'uuid2', 'uuid3'], lpar_uuids)
-        self.assertEqual(3, len(cnas))
+        self.assertEqual(set(['uuid1', 'uuid2', 'uuid3']), set(lpar_uuids))
+        self.assertEqual(4, len(cnas))
 
     def test_find_dev(self):
         agent = self.build_test_agent()

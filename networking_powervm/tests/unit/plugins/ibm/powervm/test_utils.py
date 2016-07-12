@@ -73,26 +73,6 @@ class UtilsTest(base.BasePVMTestCase):
         bridges = utils.list_bridges(mock_adpt, 'host_uuid')
         self.assertEqual(2, len(bridges))
 
-    @mock.patch('pypowervm.wrappers.logical_partition.LPAR.wrap')
-    def test_list_vm_entries(self, mock_wrap):
-        """Validates that VMs can be iterated on properly."""
-        feed = mock.Mock(object)
-        feed.entries = ['1', '2', '3']
-        vm_feed = mock.Mock(object)
-        vm_feed.feed = feed
-        adpt = mock.Mock()
-        adpt.read = mock.Mock(return_value=vm_feed)
-
-        # Mock the pypowervm wrapper to just return what it's passed
-        mock_wrap.side_effect = lambda arg: arg
-
-        # List the VMs and make some assertions
-        vm_list = utils._list_vm_entries(adpt, 'host_uuid')
-        self.assertEqual(3, len(vm_list))
-        for vm in vm_list:
-            self.assertIsNotNone(vm)
-        self.assertEqual(3, mock_wrap.call_count)
-
     @mock.patch('pypowervm.wrappers.network.VSwitch.wrap')
     def test_get_vswitch_map(self, mock_wrap):
         # Create mocks
@@ -133,11 +113,11 @@ class UtilsTest(base.BasePVMTestCase):
         self.assertIsNone(resp)
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                '_list_vm_entries')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 '_find_cnas')
+    @mock.patch('pypowervm.tasks.partition.get_partitions')
     @mock.patch('pypowervm.wrappers.network.CNA.wrap')
-    def test_list_cnas(self, mock_cna_wrap, mock_find_cnas, mock_list_vms):
+    def test_list_cnas(self, mock_cna_wrap, mock_get_partitions,
+                       mock_find_cnas):
         """Validates that the CNA's can be iterated against."""
 
         # Override the VM Entries with a fake CNA
@@ -147,11 +127,12 @@ class UtilsTest(base.BasePVMTestCase):
                 return 'fake_uuid'
         vm = FakeVM()
 
-        def list_vms(adapter, host_uuid):
+        def list_vms(adapter, lpars=True, vioses=True, mgmt=True):
+            self.assertFalse(vioses)
             return [vm]
 
         mock_find_cnas.return_value = [1]
-        mock_list_vms.side_effect = list_vms
+        mock_get_partitions.side_effect = list_vms
         mock_cna_wrap.return_value = ['mocked']
 
         # Get the CNAs and validate

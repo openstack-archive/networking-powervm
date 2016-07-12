@@ -67,6 +67,13 @@ class SEAAgentTest(base.BasePVMTestCase):
         self.adpt = self.useFixture(
             pvm_fx.AdapterFx(traits=pvm_fx.LocalPVMTraits)).adpt
 
+        # Mock the mgmt uuid
+        mock_get_mgmt_pt = mock.patch('pypowervm.tasks.partition.'
+                                      'get_mgmt_partition')
+        mock_get_mgmt = mock_get_mgmt_pt.start()
+        mock_get_mgmt.return_value = mock.MagicMock(uuid='mgmt_uuid')
+        self.addCleanup(mock_get_mgmt_pt.stop)
+
         with mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                         'get_host_uuid'),\
                 mock.patch('networking_powervm.plugins.ibm.agent.'
@@ -337,8 +344,7 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.looper.add(self.build_update_req('bb', '1', 2))
         self.assertEqual(3, len(self.looper.requests))
 
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                'list_lpar_uuids')
+    @mock.patch('pypowervm.tasks.partition.get_partitions')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_cnas')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
@@ -346,7 +352,7 @@ class PVIDLooperTest(base.BasePVMTestCase):
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'find_cna_for_mac')
     def test_update(self, mock_find_cna_for_mac, mock_update_cna_pvid,
-                    mock_list_cnas, mock_uuids):
+                    mock_list_cnas, mock_get_partitions):
         req = sea_agent.UpdateVLANRequest(FakeNPort('a', 27, 'phys_net'))
         self.looper.add(req)
 
@@ -354,7 +360,7 @@ class PVIDLooperTest(base.BasePVMTestCase):
         mock_cna = mock.MagicMock()
         mock_find_cna_for_mac.return_value = mock_cna
         mock_list_cnas.return_value = [mock_cna]
-        mock_uuids.return_value = ['lpar_uuid']
+        mock_get_partitions.return_value = [mock.Mock(uuid='lpar_uuid')]
 
         # Call the update
         self.looper.update()
@@ -369,16 +375,15 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.assertFalse(self.mock_agent.update_device_down.called)
         self.assertTrue(self.mock_agent.update_device_up.called)
 
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                'list_lpar_uuids')
+    @mock.patch('pypowervm.tasks.partition.get_partitions')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_cnas')
-    def test_update_no_lpar(self, mock_list_cnas, mock_uuids):
+    def test_update_no_lpar(self, mock_list_cnas, mock_get_partitions):
         req = sea_agent.UpdateVLANRequest(FakeNPort('a', 27, 'phys_net'))
         self.looper.add(req)
 
         # Mock the element returned
-        mock_uuids.return_value = []
+        mock_get_partitions.return_value = []
 
         # Call the update
         self.looper.update()
@@ -387,14 +392,13 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.assertEqual(1, len(self.looper.requests))
         self.assertFalse(mock_list_cnas.called)
 
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                'list_lpar_uuids')
+    @mock.patch('pypowervm.tasks.partition.get_partitions')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_cnas')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'find_cna_for_mac')
     def test_update_err(self, mock_find_cna_for_mac, mock_list_cnas,
-                        mock_list_lpar_uuids):
+                        mock_get_partitions):
         """Tests that the loop will error out after multiple loops."""
         mock_net_dev = FakeNPort('a', 1000, 'phys_net')
 
@@ -402,7 +406,7 @@ class PVIDLooperTest(base.BasePVMTestCase):
         self.looper.add(req)
 
         # Mock the element returned
-        mock_list_lpar_uuids.return_value = 'lpar_uuid'
+        mock_get_partitions.return_value = [mock.Mock(uuid='lpar_uuid')]
         mock_list_cnas.return_value = [mock.Mock(mac='AABBCCDDEEFF', pvid=5)]
         mock_find_cna_for_mac.return_value = None
 

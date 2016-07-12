@@ -26,6 +26,7 @@ from oslo_log import log as logging
 from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
 from pypowervm.tasks import network_bridger as net_br
+from pypowervm.tasks import partition as pvm_par
 
 from networking_powervm._i18n import _LE
 from networking_powervm._i18n import _LI
@@ -120,7 +121,9 @@ class PVIDLooper(object):
             return
 
         # Get the lpar UUIDs up front.
-        lpar_uuids = utils.list_lpar_uuids(self.adapter, self.host_uuid)
+        lpar_wraps = pvm_par.get_partitions(
+            self.adapter, lpars=True, vioses=False)
+        lpar_uuids = [x.uuid for x in lpar_wraps]
 
         # Loop through the current requests.  Try to update the PVIDs, but
         # if we are unable, then increment the attempt count.
