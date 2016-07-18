@@ -16,3 +16,6 @@
 
 AGENT_TYPE_PVM_SEA = 'PowerVM Shared Ethernet agent'
 VIF_TYPE_PVM_SEA = 'pvm_sea'
+
+AGENT_TYPE_PVM_SRIOV = 'PowerVM SR-IOV Ethernet agent'
+VIF_TYPE_PVM_SRIOV = 'pvm_sriov'

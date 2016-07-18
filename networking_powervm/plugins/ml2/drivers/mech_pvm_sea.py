@@ -14,21 +14,17 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from oslo_log import log
-
-from neutron.common import topics
-from neutron.extensions import portbindings
 from neutron.plugins.common import constants as p_constants
 from neutron.plugins.ml2 import driver_api as api
-from neutron.plugins.ml2.drivers import mech_agent
-from neutron.plugins.ml2 import rpc
+from oslo_log import log
 
 from networking_powervm.plugins.ibm.agent.powervm import constants as pconst
+from networking_powervm.plugins.ml2.drivers import mech_pvm_base
 
 LOG = log.getLogger(__name__)
 
 
-class PvmSEAMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
+class PvmSEAMechanismDriver(mech_pvm_base.PvmMechanismDriverBase):
     """Attach to networks using PowerVM Shared Ethernet agent.
 
     The PvmSEAMechanismDriver integrates the ml2 plugin with the
@@ -36,23 +32,8 @@ class PvmSEAMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
     """
 
     def __init__(self):
-        super(PvmSEAMechanismDriver, self).__init__(
-            pconst.AGENT_TYPE_PVM_SEA,
-            pconst.VIF_TYPE_PVM_SEA,
-            {portbindings.CAP_PORT_FILTER: False})
-        self.rpc_publisher = rpc.AgentNotifierApi(topics.AGENT)
-
-    def check_segment_for_agent(self, segment, agent):
-        # TODO(thorst) Remove this in OpenStack Newton.  It can be assumed that
-        # all agents are properly returning the mappings at that time.  The
-        # agents started reporting the mappings in Mitaka.
-        if self.get_mappings(agent):
-            return (super(PvmSEAMechanismDriver, self).
-                    check_segment_for_agent(segment, agent))
-        else:
-            LOG.debug("Checking segment: %s", segment)
-            network_type = segment[api.NETWORK_TYPE]
-            return network_type in ['vlan']
+        super(PvmSEAMechanismDriver, self).__init__(pconst.AGENT_TYPE_PVM_SEA,
+                                                    pconst.VIF_TYPE_PVM_SEA)
 
     def try_to_bind_segment_for_agent(self, context, segment, agent):
         # When this method is called, the parent should ideally be calling
@@ -70,7 +51,11 @@ class PvmSEAMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
         return bindable
 
     def get_allowed_network_types(self, agent=None):
-        return [p_constants.TYPE_VLAN]
+        """Get a list of allowed network types.
 
-    def get_mappings(self, agent):
-        return agent['configurations'].get('bridge_mappings', {})
+        The SEA agent supports only the VLAN network type.
+
+        :param agent: Not used
+        :return: List of neutron.plugins.common.constants.TYPE_* strings.
+        """
+        return [p_constants.TYPE_VLAN]

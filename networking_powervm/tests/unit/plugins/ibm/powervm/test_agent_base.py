@@ -34,6 +34,12 @@ def FakeNPort(mac, segment_id, phys_network):
             'physical_network': phys_network}
 
 
+class FakeAgent(agent_base.BasePVMNeutronAgent):
+    @property
+    def agent_id(self):
+        return 'pvm'
+
+
 class TestAgentBaseInit(base.BasePVMTestCase):
     """A test class to validate the set up of the agent with the API.
 
@@ -46,23 +52,22 @@ class TestAgentBaseInit(base.BasePVMTestCase):
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'CNAEventHandler')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.setup_rpc')
+                'BasePVMNeutronAgent.customize_agent_state')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.parse_bridge_mappings')
+                'BasePVMNeutronAgent.setup_rpc', new=mock.Mock())
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
+                'BasePVMNeutronAgent.parse_bridge_mappings', new=mock.Mock())
     @mock.patch('pypowervm.adapter.Adapter')
     @mock.patch('pypowervm.adapter.Session')
-    def test_setup_adapter(self, mock_session, mock_adapter,
-                           mock_parse_mappings, mock_setup_rpc,
+    def test_setup_adapter(self, mock_session, mock_adapter, mock_cust_as,
                            mock_evt_handler, mock_host_uuid, mock_get_mgmt):
         # Set up the mocks.
-        mock_evt_listener = (mock_session.return_value.get_event_listener.
-                             return_value)
         mock_evt_handler.return_value = 'evt_hdlr'
         mock_host_uuid.return_value = 'host_uuid'
         mock_get_mgmt.return_value = mock.Mock(uuid='mgmt_uuid')
 
         # Setup and invoke
-        neut_agt = agent_base.BasePVMNeutronAgent('bin', 'type')
+        neut_agt = FakeAgent('bin', 'type')
 
         # Validate
         mock_session.assert_called_once_with(conn_tries=300)
@@ -70,7 +75,7 @@ class TestAgentBaseInit(base.BasePVMTestCase):
             mock_session.return_value,
             helpers=[log_hlp.log_helper, vio_hlp.vios_busy_retry_helper])
         self.assertEqual('host_uuid', neut_agt.host_uuid)
-        mock_evt_listener.subscribe.assert_called_once_with('evt_hdlr')
+        mock_cust_as.assert_called_once_with()
 
 
 class TestAgentBase(base.BasePVMTestCase):
@@ -87,10 +92,9 @@ class TestAgentBase(base.BasePVMTestCase):
                 mock.patch('networking_powervm.plugins.ibm.agent.powervm.'
                            'agent_base.BasePVMNeutronAgent.'
                            'parse_bridge_mappings'):
-            agent = agent_base.BasePVMNeutronAgent('binary_name', 'agent_type')
+            agent = FakeAgent('binary_name', 'agent_type')
             agent.context = mock.Mock()
             agent.host_uuid = 'host_uuid'
-            agent.agent_id = 'pvm'
             agent.plugin_rpc = mock.MagicMock()
             agent.adapter = self.adpt
         return agent
@@ -131,7 +135,7 @@ class TestAgentBase(base.BasePVMTestCase):
 
         # Validation
         self.assertEqual(2, len(prov_reqs))
-        self.assertEqual(set(['uuid1', 'uuid2', 'uuid3']), set(lpar_uuids))
+        self.assertEqual({'uuid1', 'uuid2', 'uuid3'}, set(lpar_uuids))
         self.assertEqual(5, len(cnas))
 
     def test_find_dev(self):
