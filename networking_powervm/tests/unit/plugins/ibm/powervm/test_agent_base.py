@@ -110,10 +110,18 @@ class TestAgentBase(base.BasePVMTestCase):
             mock.Mock(uuid='uuid2', is_mgmt_partition=False),
             mock.Mock(uuid='uuid3', is_mgmt_partition=False),
             mock.Mock(uuid='mgmt_uuid', is_mgmt_partition=True)]
+
+        # Include a CNA on the mgmt LPAR.  It should be included in overall
+        # CNA list, but not in the provision request.
+        #
+        # Include a VIOS mac address.  It should be ignored in the provision
+        # requests because it is a VIOS.  But should be accounted for in
+        # the overall CNAs, because it is not a trunk adapter.
         mock_list_cnas.side_effect = [[mock.Mock(mac='aabbccddeefd')],
                                       [mock.Mock(mac='aabbccddeefe')],
                                       [mock.Mock(mac='aabbccddeeff')],
-                                      [mock.Mock(mac='aabbccddeef1')]]
+                                      [mock.Mock(mac='aabbccddeef1')],
+                                      [mock.Mock(mac='vios_mac')]]
         mock_dev_details.return_value = [
             {'device': 'aa:bb:cc:dd:ee:fd'}, {'mac_address': 'aabbccddeefe'},
             {'mac_address': 'aa:bb:cc:dd:ee:ff'}]
@@ -124,7 +132,7 @@ class TestAgentBase(base.BasePVMTestCase):
         # Validation
         self.assertEqual(2, len(prov_reqs))
         self.assertEqual(set(['uuid1', 'uuid2', 'uuid3']), set(lpar_uuids))
-        self.assertEqual(4, len(cnas))
+        self.assertEqual(5, len(cnas))
 
     def test_find_dev(self):
         agent = self.build_test_agent()

@@ -35,6 +35,7 @@ from pypowervm.helpers import vios_busy as vio_hlp
 from pypowervm.tasks import partition as pvm_par
 from pypowervm import util as pvm_util
 from pypowervm.utils import uuid as pvm_uuid
+from pypowervm.wrappers import virtual_io_server as pvm_vios
 
 from networking_powervm._i18n import _
 from networking_powervm._i18n import _LE
@@ -403,6 +404,11 @@ class BasePVMNeutronAgent(object):
             if not lpar_wrap.is_mgmt_partition:
                 lpar_cna_map[lpar_wrap.uuid] = lpar_cnas
                 request_cnas.extend(lpar_cnas)
+
+        # There can be CNA's (non-trunk) on VIOSes as well.  They should be
+        # taken into account for the overall cna's.
+        overall_cnas.extend(utils.list_cnas(self.adapter, self.host_uuid,
+                                            part_type=pvm_vios.VIOS))
 
         # Get all the devices that Neutron knows for this host.  Note that
         # we pass in all of the macs on the system.  For VMs that neutron does

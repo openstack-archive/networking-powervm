@@ -230,25 +230,30 @@ def get_vswitch_map(adapter, host_uuid):
     return resp
 
 
-def list_cnas(adapter, host_uuid, lpar_uuid=None):
+def list_cnas(adapter, host_uuid, lpar_uuid=None, part_type=pvm_lpar.LPAR):
     """Lists all of the Client Network Adapters for the running VMs.
 
     :param adapter: The pypowervm adapter.
     :param host_uuid: The UUID for the host system.
     :param lpar_uuid: (Optional) If specified, will only return the CNA's for
                       a given LPAR ID.
+    :param part_type: (Optional: Default: pvm_lpar.LPAR) Sets which partition
+                      type should have the CNA's listed for.  Either
+                      - pypowervm.wrappers.logical_partition.LPAR
+                      - pypowervm.wrappers.virtual_io_server.VIOS
     """
     # Get the UUIDs of the VMs to query for.
     if lpar_uuid:
         vm_uuids = [lpar_uuid]
     else:
-        vm_uuids = [x.uuid for x in pvm_par.get_partitions(adapter,
-                                                           vioses=False)]
+        vm_uuids = [x.uuid for x in pvm_par.get_partitions(
+                    adapter, lpars=(part_type == pvm_lpar.LPAR),
+                    vioses=(part_type == pvm_vios.VIOS))]
 
     # Loop through the VMs
     total_cnas = []
     for vm_uuid in vm_uuids:
-        total_cnas.extend(_find_cnas(adapter, vm_uuid))
+        total_cnas.extend(_find_cnas(adapter, vm_uuid, part_type=part_type))
 
     return total_cnas
 
@@ -266,14 +271,38 @@ def _remove_log_helper(adapter):
 
 
 @pvm_retry.retry()
-def _find_cnas(adapter, vm_uuid):
+def _find_cnas(adapter, vm_uuid, part_type=pvm_lpar.LPAR):
+    """Return the list of client network adapters.
+
+    This method returns the list of client network adapters.  But it defines
+    what a client network adapter is different from the pypowervm API.  It does
+    this because pypowervm has an odd definition.
+
+    To the SEA agent, a Client Network Adapter is:
+     - ANY pypowervm CNA that is on a LPAR (OpenStack Managed/Unmanaged or
+       possibly even the mgmt LPAR)
+     - All CNA's on the VIOS partition types that are NOT trunk adapters.
+
+    This method returns those two types because it is often used with the
+    heal_and_optimize workflow.  That workflow wants to know all of the VLANs
+    that are in use on the system, so that it can trim out any extra VLANs
+    from the VIOS type VMs trunk adapters (to reduce the broadcast domain).
+
+    :param adapter: The pypowervm API adapter
+    :param vm_uuid: The LPAR's UUID
+    :param part_type: The partition type to find CNA's for.  Either
+                      - pypowervm.wrappers.logical_partition.LPAR
+                      - pypowervm.wrappers.virtual_io_server.VIOS
+    """
     try:
-        # Extend the array to include the response
-        vm_cna_feed_resp = adapter.read(
-            pvm_lpar.LPAR.schema_type, root_id=vm_uuid,
-            child_type=pvm_net.CNA.schema_type,
+        cna_list = pvm_net.CNA.get(
+            adapter, parent_type=part_type.schema_type, parent_uuid=vm_uuid,
             helpers=_remove_log_helper(adapter))
-        return pvm_net.CNA.wrap(vm_cna_feed_resp)
+
+        # This method returns all of the Client Network Adapters.  It will
+        # return trunk adapters on LPARs, but NOT on VIOS type partitions.
+        return [x for x in cna_list if (not x.is_tagged_vlan_supported or
+                                        part_type is pvm_lpar.LPAR)]
     except pvm_exc.HttpError as e:
         # If it is a 404 (not found) then just skip.
         if e.response is not None and e.response.status == 404:

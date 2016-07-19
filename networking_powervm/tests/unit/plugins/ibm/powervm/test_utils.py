@@ -22,6 +22,7 @@ from networking_powervm.tests.unit.plugins.ibm.powervm import base
 
 from pypowervm import const as pvm_const
 from pypowervm import exceptions as pvm_exc
+from pypowervm.wrappers import virtual_io_server as pvm_vios
 
 
 class UtilsTest(base.BasePVMTestCase):
@@ -127,8 +128,10 @@ class UtilsTest(base.BasePVMTestCase):
                 return 'fake_uuid'
         vm = FakeVM()
 
-        def list_vms(adapter, lpars=True, vioses=True, mgmt=True):
+        def list_vms(adapter, lpars=True, vioses=True, mgmt=None):
+            self.assertTrue(lpars)
             self.assertFalse(vioses)
+            self.assertIsNone(mgmt)
             return [vm]
 
         mock_find_cnas.return_value = [1]
@@ -137,6 +140,35 @@ class UtilsTest(base.BasePVMTestCase):
 
         # Get the CNAs and validate
         cnas = utils.list_cnas(None, 'host_uuid')
+        self.assertEqual(1, len(cnas))
+
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
+                '_find_cnas')
+    @mock.patch('pypowervm.tasks.partition.get_partitions')
+    @mock.patch('pypowervm.wrappers.network.CNA.wrap')
+    def test_list_cnas_for_vio(self, mock_cna_wrap, mock_get_partitions,
+                               mock_find_cnas):
+        """Validates the list_cna's method with VIOS as partition types"""
+
+        # Override the VM Entries with a fake CNA
+        class FakeVM(object):
+            @property
+            def uuid(self):
+                return 'fake_uuid'
+        vm = FakeVM()
+
+        def list_vms(adapter, lpars=True, vioses=True, mgmt=None):
+            self.assertTrue(vioses)
+            self.assertFalse(lpars)
+            self.assertIsNone(mgmt)
+            return [vm]
+
+        mock_find_cnas.return_value = [1]
+        mock_get_partitions.side_effect = list_vms
+        mock_cna_wrap.return_value = ['mocked']
+
+        # Get the CNAs and validate
+        cnas = utils.list_cnas(None, 'host_uuid', part_type=pvm_vios.VIOS)
         self.assertEqual(1, len(cnas))
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
@@ -246,3 +278,20 @@ class UtilsTest(base.BasePVMTestCase):
         self.assertRaises(pvm_exc.HttpError, utils.update_cna_pvid, cna, 5)
         self.assertEqual(1, cna.update.call_count)
         self.assertEqual(0, cna.refresh.call_count)
+
+    @mock.patch('pypowervm.wrappers.network.CNA.get')
+    def test_find_cnas(self, mock_cna_get):
+        vea1 = mock.Mock(uuid='1', is_tagged_vlan_supported=True)
+        vea2 = mock.Mock(uuid='2', is_tagged_vlan_supported=False)
+        vea3 = mock.Mock(uuid='3', is_tagged_vlan_supported=True)
+
+        mock_cna_get.return_value = [vea1, vea2, vea3]
+
+        # The LPAR type should include the trunk adapters
+        resp = utils._find_cnas(mock.Mock(), 'vm_uuid')
+        self.assertEqual([vea1, vea2, vea3], resp)
+
+        # The vios type should ignore the trunk adapters
+        resp = utils._find_cnas(mock.Mock(), 'vm_uuid',
+                                part_type=pvm_vios.VIOS)
+        self.assertEqual([vea2], resp)
