@@ -139,7 +139,7 @@ class UtilsTest(base.BasePVMTestCase):
         mock_cna_wrap.return_value = ['mocked']
 
         # Get the CNAs and validate
-        cnas = utils.list_cnas(None, 'host_uuid')
+        cnas = utils.list_cnas(None)
         self.assertEqual(1, len(cnas))
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'

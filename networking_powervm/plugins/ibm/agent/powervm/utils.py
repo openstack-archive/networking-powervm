@@ -27,6 +27,7 @@ from pypowervm.wrappers import managed_system as pvm_ms
 from pypowervm.wrappers import network as pvm_net
 from pypowervm.wrappers import virtual_io_server as pvm_vios
 
+from networking_powervm._i18n import _LI
 from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
 
@@ -79,11 +80,7 @@ def parse_sea_mappings(adapter, host_uuid, mapping):
         return _parse_empty_bridge_mapping(nb_wraps)
 
     # Need to find a list of all the VIOSes names to hrefs
-    vio_feed = adapter.read(pvm_ms.System.schema_type,
-                            root_id=host_uuid,
-                            child_type=pvm_vios.VIOS.schema_type,
-                            xag=[pvm_const.XAG.VIO_NET])
-    vio_wraps = pvm_vios.VIOS.wrap(vio_feed)
+    vio_wraps = pvm_vios.VIOS.get(adapter, xag=[pvm_const.XAG.VIO_NET])
 
     # Response dictionary
     resp = {}
@@ -221,20 +218,19 @@ def get_vswitch_map(adapter, host_uuid):
     :param adapter: The pypowervm adapter.
     :param host_uuid: The UUID for the host system.
     """
-    vsw_feed = adapter.read(pvm_ms.System.schema_type, root_id=host_uuid,
-                            child_type=pvm_net.VSwitch.schema_type)
-    vswitches = pvm_net.VSwitch.wrap(vsw_feed)
+    vswitches = pvm_net.VSwitch.get(
+        adapter, parent_type=pvm_ms.System.schema_type,
+        parent_uuid=host_uuid)
     resp = {}
     for vswitch in vswitches:
         resp[vswitch.switch_id] = vswitch.related_href
     return resp
 
 
-def list_cnas(adapter, host_uuid, lpar_uuid=None, part_type=pvm_lpar.LPAR):
+def list_cnas(adapter, lpar_uuid=None, part_type=pvm_lpar.LPAR):
     """Lists all of the Client Network Adapters for the running VMs.
 
     :param adapter: The pypowervm adapter.
-    :param host_uuid: The UUID for the host system.
     :param lpar_uuid: (Optional) If specified, will only return the CNA's for
                       a given LPAR ID.
     :param part_type: (Optional: Default: pvm_lpar.LPAR) Sets which partition
@@ -246,6 +242,8 @@ def list_cnas(adapter, host_uuid, lpar_uuid=None, part_type=pvm_lpar.LPAR):
     if lpar_uuid:
         vm_uuids = [lpar_uuid]
     else:
+        LOG.info(_LI("Gathering all of the Virtual Machine UUIDs for a "
+                     "list_cnas call."))
         vm_uuids = [x.uuid for x in pvm_par.get_partitions(
                     adapter, lpars=(part_type == pvm_lpar.LPAR),
                     vioses=(part_type == pvm_vios.VIOS))]

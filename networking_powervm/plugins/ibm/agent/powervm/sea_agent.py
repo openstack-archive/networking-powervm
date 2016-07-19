@@ -144,8 +144,8 @@ class PVIDLooper(object):
         try:
             if p_req.lpar_uuid in lpar_uuids:
                 # Get the adapters just for the VM that the request is for.
-                client_adpts = utils.list_cnas(self.adapter, self.host_uuid,
-                                               lpar_uuid=p_req.lpar_uuid)
+                client_adpts = utils.list_cnas(
+                    self.adapter, lpar_uuid=p_req.lpar_uuid)
                 cna = utils.find_cna_for_mac(p_req.mac_address, client_adpts)
                 if cna:
                     # If the PVID does not match, update the CNA.
@@ -297,6 +297,8 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         :param lpar_uuids: A list of the VM UUIDs for the REST API.
         :param overall_cnas: A list of the systems Client Network Adapters.
         """
+        LOG.info(_LI("Running the heal and optimize flow."))
+
         # Dictionary of the required VLANs on the Network Bridge
         nb_req_vlans = {}
         nb_wraps = utils.list_bridges(self.adapter, self.host_uuid)
@@ -415,7 +417,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         # port state in the backing neutron server could be out of sync.
         for p_req in requests:
             self.pvid_updater.add(UpdateVLANRequest(p_req))
-        LOG.debug('Successfully provisioned new devices.')
+        LOG.debug('Successfully provisioned SEA VLANs for new devices.')
 
     def _get_nb_and_vlan(self, dev, emit_warnings=False):
         """Parses bridge mappings to find a match for the device passed in.

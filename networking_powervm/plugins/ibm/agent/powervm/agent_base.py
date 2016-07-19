@@ -192,7 +192,7 @@ class CNAEventHandler(pvm_adpt.EventHandler):
             return []
 
         # For the LPAR, get the CNAs.
-        cna_wraps = utils.list_cnas(self.adapter, self.host_uuid, uuid)
+        cna_wraps = utils.list_cnas(self.adapter, lpar_uuid=uuid)
         resp = []
         for cna_w in cna_wraps:
             # Build a provision request for each type
@@ -208,6 +208,8 @@ class CNAEventHandler(pvm_adpt.EventHandler):
                 continue
 
             # Must be good!
+            LOG.info(_LI("Server indicated port update for %(mac)s."),
+                     {'mac': device_detail.get('mac_address')})
             resp.append(ProvisionRequest(device_detail, uuid))
         return resp
 
@@ -317,11 +319,15 @@ class BasePVMNeutronAgent(object):
 
     def update_device_up(self, device):
         """Calls back to neutron that a device is alive."""
+        LOG.debug("Sending device up to Neutron for %(dev)s",
+                  {'dev': device['device']})
         self.plugin_rpc.update_device_up(self.context, device['device'],
                                          self.agent_id, cfg.CONF.host)
 
     def update_device_down(self, device):
         """Calls back to neutron that a device is down."""
+        LOG.warning(_LW("Sending device DOWN to Neutron for %(dev)s"),
+                    {'dev': device['device']})
         self.plugin_rpc.update_device_down(self.context, device['device'],
                                            self.agent_id, cfg.CONF.host)
 
@@ -396,7 +402,7 @@ class BasePVMNeutronAgent(object):
         # Don't use lpar_uuids, as we want to include mgmt VM for overall_cnas
         for lpar_wrap in lpar_wraps:
             lpar_cnas = utils.list_cnas(
-                self.adapter, self.host_uuid, lpar_uuid=lpar_wrap.uuid)
+                self.adapter, lpar_uuid=lpar_wrap.uuid)
             overall_cnas.extend(lpar_cnas)
 
             # lpar_cna_map is used to build provision requests.  We won't have
@@ -407,7 +413,7 @@ class BasePVMNeutronAgent(object):
 
         # There can be CNA's (non-trunk) on VIOSes as well.  They should be
         # taken into account for the overall cna's.
-        overall_cnas.extend(utils.list_cnas(self.adapter, self.host_uuid,
+        overall_cnas.extend(utils.list_cnas(self.adapter,
                                             part_type=pvm_vios.VIOS))
 
         # Get all the devices that Neutron knows for this host.  Note that
