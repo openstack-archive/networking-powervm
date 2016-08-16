@@ -182,11 +182,14 @@ class UtilsTest(base.BasePVMTestCase):
                 return '21-25D0A'
 
             @property
-            def related_href(self):
-                return 'https://9.1.2.3/vios1'
-        mock_sea = mock.Mock()
-        mock_sea.dev_name = 'ent8'
-        mock_sea.vio_uri = 'https://9.1.2.3/vios1'
+            def uuid(self):
+                return "4E0B057C-F052-4609-8EDE-071C7FC485BD"
+
+        mock_sea = mock.Mock(
+            dev_name='ent8',
+            vio_uri='http://localhost:12080/rest/api/uom/ManagedSystem/'
+                    'b7f6d2f3-c4f3-33e4-91ea-1aaeada65d7b/VirtualIOServer/'
+                    '4E0B057C-F052-4609-8EDE-071C7FC485BD')
         nb_wrap = mock.Mock()
         nb_wrap.seas = [mock_sea]
         nb_wrap.uuid = '764f3423-04c5-3b96-95a3-4764065400bd'

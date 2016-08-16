@@ -101,8 +101,9 @@ def parse_sea_mappings(adapter, host_uuid, mapping):
         matching_nb = None
         for nb_wrap in nb_wraps:
             for sea in nb_wrap.seas:
-                if (sea.dev_name == keys[1] and
-                        sea.vio_uri == vio_w.related_href):
+                sea_vio_uuid = pvm_util.get_req_path_uuid(
+                    sea.vio_uri, preserve_case=True)
+                if sea.dev_name == keys[1] and sea_vio_uuid == vio_w.uuid:
                     # Found the matching SEA.
                     matching_nb = nb_wrap
                     break
