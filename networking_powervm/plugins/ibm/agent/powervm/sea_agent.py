@@ -14,21 +14,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import copy
 import eventlet
 eventlet.monkey_patch()
-import time
 
-from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log as logging
 
 from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
 from pypowervm.tasks import network_bridger as net_br
-from pypowervm.tasks import partition as pvm_par
 
-from networking_powervm._i18n import _LE
 from networking_powervm._i18n import _LI
 from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
@@ -77,167 +72,6 @@ a_config.register_root_helper(cfg.CONF)
 ACONF = cfg.CONF.AGENT
 
 
-class UpdateVLANRequest(object):
-    """Used for the async update of the PVIDs on ports."""
-
-    def __init__(self, p_req):
-        """Creates a request to update the VLAN.
-
-        :param p_req: The backing ProvisionRequest which provides details
-                      about which client LPAR and Network Adapter to update
-                      the VLAN on.
-        """
-        self.p_req = p_req
-        self.attempt_count = 0
-
-
-class PVIDLooper(object):
-    """This class is used to monitor and apply update PVIDs to CNAs.
-
-    When Neutron receives a Port Create request, the client CNA needs to have
-    the appropriate VLAN applied to it.  However, the port create is usually
-    done before the CNA actually exists.
-
-    This class will listen for a period of time, and when the CNA becomes
-    available, will update the CNA with the appropriate PVID.
-    """
-
-    def __init__(self, agent):
-        """Initializes the looper.
-
-        :param agent: The agent running the PVIDLooper
-        """
-        self.requests = []
-        self.agent = agent
-        self.adapter = agent.adapter
-        self.host_uuid = agent.host_uuid
-
-    def update(self):
-        """Performs a loop and updates all of the queued requests."""
-        current_requests = copy.copy(self.requests)
-
-        # No requests, do nothing.
-        if len(current_requests) == 0:
-            return
-
-        # Get the lpar UUIDs up front.
-        lpar_wraps = pvm_par.get_partitions(
-            self.adapter, lpars=True, vioses=False)
-        lpar_uuids = [x.uuid for x in lpar_wraps]
-
-        # Loop through the current requests.  Try to update the PVIDs, but
-        # if we are unable, then increment the attempt count.
-        for request in current_requests:
-            self._update_req(request, lpar_uuids)
-
-    def _update_req(self, request, lpar_uuids):
-        """Attempts to provision a given UpdateVLANRequest.
-
-        :param request: The UpdateVLANRequest.
-        :return: True if the request was successfully processed.  False if it
-                 was not able to process.
-        """
-        # Pull the ProvisionRequest off the VLAN Update call.
-        p_req = request.p_req
-        client_adpts = []
-
-        try:
-            if p_req.lpar_uuid in lpar_uuids:
-                # Get the adapters just for the VM that the request is for.
-                client_adpts = utils.list_cnas(
-                    self.adapter, lpar_uuid=p_req.lpar_uuid)
-                cna = utils.find_cna_for_mac(p_req.mac_address, client_adpts)
-                if cna:
-                    # If the PVID does not match, update the CNA.
-                    if cna.pvid != p_req.segmentation_id:
-                        utils.update_cna_pvid(cna, p_req.segmentation_id)
-                    LOG.info(_LI("Sending update device for %s"),
-                             p_req.mac_address)
-                    self.agent.update_device_up(p_req.rpc_device)
-                    self._remove_request(request)
-                    return
-
-        except Exception as e:
-            LOG.warning(_LW("An error occurred while attempting to update the "
-                            "PVID of the virtual NIC."))
-            LOG.exception(e)
-
-        # Increment the request count.
-        request.attempt_count += 1
-        if request.attempt_count >= ACONF.pvid_update_loops:
-            # If it had been on the system...this is an error.
-            if p_req.lpar_uuid in lpar_uuids:
-                self._mark_failed(p_req, client_adpts)
-
-            # Remove the request from the overall queue
-            self._remove_request(request)
-
-    def _mark_failed(self, p_req, client_adpts):
-        """Marks a provision request as failed."""
-        LOG.error(_LE("Unable to update PVID to %(pvid)s for MAC Address "
-                      "%(mac)s as there was no valid network adapter found."),
-                  {'pvid': p_req.segmentation_id, 'mac': p_req.mac_address})
-
-        # Log additionally the adapters (if any) that were found for the
-        # client LPAR.
-        count = 0
-        for cna in client_adpts:
-            LOG.error(_LE("Existing Adapter %(num)d: mac %(mac)s, pvid "
-                          "%(pvid)d"), {'num': count, 'mac': cna.mac,
-                                        'pvid': cna.pvid})
-            count += 1
-
-        # Mark the device down.
-        self.agent.update_device_down(p_req.rpc_device)
-
-    def looping_call(self):
-        """Runs the update method, but wraps a try/except block around it."""
-        while True:
-            try:
-                self.update()
-            except Exception as e:
-                # Only log the exception, do not block the processing.
-                LOG.exception(e)
-
-            # Sleep for a second.
-            time.sleep(1)
-
-    @lockutils.synchronized('pvid_looper_req')
-    def _remove_request(self, request):
-        self.requests.remove(request)
-
-    @lockutils.synchronized('pvid_looper_req')
-    def add(self, request):
-        """Adds a new request to the looper utility.
-
-        :param request: A UpdateVLANRequest.
-        """
-        # The request may already be on the system.  This can happen due to the
-        # CNAEventHandler...it may have been invoked a few times from LPAR
-        # invalidates...thus making it appear like the request came through
-        # a few times.
-        #
-        # We should look at the existing queue, and only add to it if we do
-        # not have one with a similar to it.
-        contains = False
-        for existing_req in self.requests:
-            if existing_req.p_req == request.p_req:
-                contains = True
-                break
-
-        if not contains:
-            self.requests.append(request)
-
-    @property
-    @lockutils.synchronized('pvid_looper_req')
-    def pending_vlans(self):
-        """Returns the set of pending VLAN updates.
-
-        :return: Set of unique VLAN ids from within the pending requests.
-        """
-        return {x.p_req.segmentation_id for x in self.requests}
-
-
 class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
     """
     Provides VLAN networks for the PowerVM platform that run accross the
@@ -260,11 +94,6 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         evt_listener = self.adapter.session.get_event_listener()
         self._cna_event_handler = agent_base.CNAEventHandler(self)
         evt_listener.subscribe(self._cna_event_handler)
-
-        # A looping utility that updates asynchronously the PVIDs on the
-        # Client Network Adapters (CNAs)
-        self.pvid_updater = PVIDLooper(self)
-        eventlet.spawn_n(self.pvid_updater.looping_call)
 
     def parse_bridge_mappings(self):
         return utils.parse_sea_mappings(self.adapter, self.host_uuid,
@@ -351,11 +180,6 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
             for addl_vlan in client_adpt.tagged_vlans:
                 nb_req_vlans[nb.uuid].add(addl_vlan)
 
-        # We will have a list of CNAs that are not yet created, but are pending
-        # provisioning from Nova.  Keep track of those so that we don't tear
-        # those off the SEA.
-        pending_vlans = self.pvid_updater.pending_vlans
-
         # The list of required VLANs on each network bridge also includes
         # everything on the primary VEA.
         for nb in nb_wraps:
@@ -367,16 +191,16 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
 
         # If the configuration is set.
         if ACONF.automated_powervm_vlan_cleanup:
-            self._cleanup_unused_vlans(nb_wraps, nb_req_vlans, pending_vlans)
+            self._cleanup_unused_vlans(nb_wraps, nb_req_vlans)
 
-    def _cleanup_unused_vlans(self, nb_wraps, nb_req_vlans, pending_vlans):
+    def _cleanup_unused_vlans(self, nb_wraps, nb_req_vlans):
         cur_delete = 0
 
         # Loop through and remove VLANs that are no longer needed.
         for nb in nb_wraps:
             # Join the required vlans on the network bridge (already in
             # use) with the pending VLANs.
-            req_vlans = nb_req_vlans[nb.uuid] | pending_vlans
+            req_vlans = nb_req_vlans[nb.uuid]
 
             # Get ALL the VLANs on the bridge
             existing_vlans = set(nb.list_vlans())
@@ -441,11 +265,9 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
                                       nb_to_vlan.get(nb_uuid))
 
         # Now that the bridging is complete, loop through the devices again
-        # and kick off the PVID update on the client devices.  This should
-        # not be done until the vlan is on the network bridge.  Otherwise the
-        # port state in the backing neutron server could be out of sync.
+        # and mark them as up.
         for p_req in requests:
-            self.pvid_updater.add(UpdateVLANRequest(p_req))
+            self.update_device_up(p_req.rpc_device)
         LOG.debug('Successfully provisioned SEA VLANs for new devices.')
 
     def _get_nb_and_vlan(self, dev, emit_warnings=False):
