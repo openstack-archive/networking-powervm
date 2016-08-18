@@ -358,24 +358,44 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
 
         # If the configuration is set.
         if ACONF.automated_powervm_vlan_cleanup:
-            # Loop through and remove VLANs that are no longer needed.
-            for nb in nb_wraps:
-                # Join the required vlans on the network bridge (already in
-                # use) with the pending VLANs.
-                req_vlans = nb_req_vlans[nb.uuid] | pending_vlans
+            self._cleanup_unused_vlans(nb_wraps, nb_req_vlans, pending_vlans)
 
-                # Get ALL the VLANs on the bridge
-                existing_vlans = set(nb.list_vlans())
+    def _cleanup_unused_vlans(self, nb_wraps, nb_req_vlans, pending_vlans):
+        cur_delete = 0
 
-                # To determine the ones no longer needed, subtract from all the
-                # VLANs the ones that are no longer needed.
-                vlans_to_del = existing_vlans - req_vlans
-                for vlan_to_del in vlans_to_del:
+        # Loop through and remove VLANs that are no longer needed.
+        for nb in nb_wraps:
+            # Join the required vlans on the network bridge (already in
+            # use) with the pending VLANs.
+            req_vlans = nb_req_vlans[nb.uuid] | pending_vlans
+
+            # Get ALL the VLANs on the bridge
+            existing_vlans = set(nb.list_vlans())
+
+            # To determine the ones no longer needed, subtract from all the
+            # VLANs the ones that are no longer needed.
+            vlans_to_del = existing_vlans - req_vlans
+            for vlan_to_del in vlans_to_del:
+                if cur_delete < 3:
                     LOG.warning(_LW("Cleaning up VLAN %(vlan)s from the "
                                     "system. It is no longer in use."),
                                 {'vlan': vlan_to_del})
                     net_br.remove_vlan_from_nb(self.adapter, self.host_uuid,
                                                nb.uuid, vlan_to_del)
+                else:
+                    # We don't want to block on optimization for too long.
+                    # Each VLAN clean up can take ~2 seconds, so if we do
+                    # three of them, then that blocks deploys for about 6
+                    # seconds.  We generally don't clean out VLANs that often
+                    # but just in case, we get a rush of them, this ensures
+                    # we don't block provision requests that are actually going
+                    # on in the system.
+                    LOG.warning(_LW(
+                        "System identified that VLAN %(vlan)s is unused. "
+                        "However three VLAN clean ups have already occurred "
+                        "in this pass. Will clean up in next optimization "
+                        "pass."), {'vlan': vlan_to_del})
+                cur_delete += 1
 
     def provision_devices(self, requests):
         """Will ensure that the VLANs are on the NBs for the edge devices.

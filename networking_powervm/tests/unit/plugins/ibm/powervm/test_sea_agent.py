@@ -193,7 +193,7 @@ class SEAAgentTest(base.BasePVMTestCase):
             self, mock_find_nb_for_cna, mock_list_bridges, mock_list_cnas,
             mock_vs_map, mock_prov_devs, mock_get_nb_and_vlan,
             mock_nbr_remove):
-        """Validates the heal and optimization code."""
+        """Validates the heal and optimization code.  Limited to 3 deletes."""
         # Fake adapters already on system.
         adpts = [FakeClientAdpt('00', 30, []),
                  FakeClientAdpt('11', 31, [32, 33, 34])]
@@ -216,9 +216,11 @@ class SEAAgentTest(base.BasePVMTestCase):
 
         # Mock up network bridges.  VLANs 44, 45, and 46 should be deleted
         # as they are not required by anything.  VLAN 47 should be needed
-        # as it is in the pending list.
+        # as it is in the pending list.  VLAN 48 should be deleted, but will
+        # put over the three delete max count (and therefore would be hit in
+        # next pass)
         mock_nb1 = FakeNB('nb_uuid', 20, [], [])
-        mock_nb2 = FakeNB('nb2_uuid', 40, [41, 42, 43], [44, 45, 46, 47])
+        mock_nb2 = FakeNB('nb2_uuid', 40, [41, 42, 43], [44, 45, 46, 47, 48])
         mock_list_bridges.return_value = [mock_nb1, mock_nb2]
         mock_find_nb_for_cna.return_value = mock_nb2
 
