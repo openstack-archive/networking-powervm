@@ -285,8 +285,7 @@ class SEAAgentTest(base.BasePVMTestCase):
                        return_value=mock.Mock())
     def test_setup_rpc(self, admin_ctxi, mock_loopingcall):
         """Validates that the setup_rpc method is properly invoked."""
-        cfg.CONF.AGENT = mock.Mock()
-        cfg.CONF.AGENT.report_interval = 5
+        cfg.CONF.set_override('report_interval', 5, group='AGENT')
 
         # Derives the instance that will be returned when a new loopingcall
         # is made.  Used for verification

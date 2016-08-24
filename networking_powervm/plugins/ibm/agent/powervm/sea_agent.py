@@ -245,12 +245,21 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
     with the ML2 Neutron Plugin.
     """
 
+    @property
+    def agent_id(self):
+        return 'sea-agent-%s' % cfg.CONF.host
+
     def __init__(self):
         """Constructs the agent."""
         name = 'networking-powervm-sharedethernet-agent'
         agent_type = p_const.AGENT_TYPE_PVM_SEA
 
         super(SharedEthernetNeutronAgent, self).__init__(name, agent_type)
+
+        # Add a CNA event handler to the session.
+        evt_listener = self.adapter.session.get_event_listener()
+        self._cna_event_handler = agent_base.CNAEventHandler(self)
+        evt_listener.subscribe(self._cna_event_handler)
 
         # A looping utility that updates asynchronously the PVIDs on the
         # Client Network Adapters (CNAs)

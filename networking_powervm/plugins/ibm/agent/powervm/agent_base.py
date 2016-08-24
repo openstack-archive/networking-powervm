@@ -14,6 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import abc
 import copy
 
 import eventlet
@@ -60,7 +61,10 @@ agent_opts = [
                help=_('The number of seconds the agent should wait between '
                       'heal/optimize intervals.  Should be higher than the '
                       'polling_interval as it runs in the nearest polling '
-                      'loop.'))
+                      'loop.')),
+    cfg.IntOpt('vnic_required_vfs', default=2, min=1,
+               help='Redundancy level for SR-IOV backed vNIC attachments. '
+                    'Minimum value is 1.')
 ]
 
 cfg.CONF.register_opts(agent_opts, "AGENT")
@@ -229,7 +233,20 @@ class BasePVMNeutronAgent(object):
     integration with the RPC server.
     """
 
+    @abc.abstractproperty
+    def agent_id(self):
+        raise NotImplementedError()
+
+    def customize_agent_state(self):
+        """Perform subclass-specific adjustments to self.agent_state."""
+        pass
+
     def __init__(self, binary_name, agent_type):
+        """Create the PVM neutron agent.
+
+        :param binary_name: Executable process name for the agent.
+        :param agent_type: Type label, one of constants.AGENT_TYPE_PVM_*
+        """
         # Create the utility class that enables work against the Hypervisors
         # Shared Ethernet NetworkBridge.
         self.setup_adapter()
@@ -244,6 +261,8 @@ class BasePVMNeutronAgent(object):
             'configurations': {'bridge_mappings': self.br_map},
             'agent_type': agent_type,
             'start_flag': True}
+        self.customize_agent_state()
+
         # A list of ports that maintains the list of current 'modified' ports
         self.updated_ports = []
 
@@ -254,16 +273,10 @@ class BasePVMNeutronAgent(object):
         """Configures the pypowervm adapter and utilities."""
         # Build the adapter.  May need to attempt the connection multiple times
         # in case the REST server is starting.
-        session = pvm_adpt.Session(conn_tries=300)
         self.adapter = pvm_adpt.Adapter(
-            session, helpers=[log_hlp.log_helper,
-                              vio_hlp.vios_busy_retry_helper])
+            pvm_adpt.Session(conn_tries=300),
+            helpers=[log_hlp.log_helper, vio_hlp.vios_busy_retry_helper])
         self.host_uuid = utils.get_host_uuid(self.adapter)
-
-        # Add an event handler to the session.
-        evt_listener = session.get_event_listener()
-        self._cna_event_handler = CNAEventHandler(self)
-        evt_listener.subscribe(self._cna_event_handler)
 
     def parse_bridge_mappings(self):
         """This method should return the bridge mappings dictionary.
@@ -274,7 +287,6 @@ class BasePVMNeutronAgent(object):
 
     def setup_rpc(self):
         """Registers the RPC consumers for the plugin."""
-        self.agent_id = 'sea-agent-%s' % cfg.CONF.host
         self.topic = topics.AGENT
         self.plugin_rpc = PVMPluginApi(topics.PLUGIN)
         self.state_rpc = agent_rpc.PluginReportStateAPI(topics.PLUGIN)
@@ -295,7 +307,7 @@ class BasePVMNeutronAgent(object):
                                                      consumers)
 
         # Report interval is for the agent health check.
-        report_interval = cfg.CONF.AGENT.report_interval
+        report_interval = ACONF.report_interval
         if report_interval:
             hb = loopingcall.FixedIntervalLoopingCall(self._report_state)
             hb.start(interval=report_interval)

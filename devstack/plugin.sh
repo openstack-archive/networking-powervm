@@ -39,7 +39,7 @@ source $NETWORKING_POWERVM_PLUGIN_DIR/powervm-functions.sh
 
 # configure_networking_powervm() - Configure the system to use networking_powervm
 function configure_networking_powervm {
-    iniset /$Q_PLUGIN_CONF_FILE ml2 mechanism_drivers $PVM_SEA_MECH_DRIVER
+    iniset /$Q_PLUGIN_CONF_FILE ml2 mechanism_drivers $PVM_SEA_MECH_DRIVER,$PVM_SRIOV_MECH_DRIVER
 }
 
 # install_networking_powervm() - Install networking_powervm and necessary dependencies
@@ -58,14 +58,20 @@ function start_networking_powervm {
     # Check that NovaLink is installed and running
     check_novalink_install
 
-    # Start the pvm_sea ml2 agent
-    run_process pvm-q-agt "$PVM_SEA_AGENT_BINARY --config-file $NEUTRON_CONF --config-file /$Q_PLUGIN_CONF_FILE"
+    # Start the pvm_* ml2 agents, as requested
+    if is_service_enabled pvm-q-sea-agt; then
+        run_process pvm-q-sea-agt "$PVM_SEA_AGENT_BINARY --config-file $NEUTRON_CONF --config-file /$Q_PLUGIN_CONF_FILE"
+    fi
+    if is_service_enabled pvm-q-sriov-agt; then
+        run_process pvm-q-sriov-agt "$PVM_SRIOV_AGENT_BINARY --config-file $NEUTRON_CONF --config-file /$Q_PLUGIN_CONF_FILE"
+    fi
 }
 
 # stop_networking_powervm() - Stop the networking_powervm process
 function stop_networking_powervm {
-    # Stop the pvm_sea ml2 agent
-    stop_process pvm-q-agt
+    # Stop the pvm_* ml2 agents
+    stop_process pvm-q-sea-agt
+    stop_process pvm-q-sriov-agt
 }
 
 # cleanup_networking_powervm() - Cleanup the networking_powervm process
@@ -77,7 +83,7 @@ function cleanup_networking_powervm {
 # Core Dispatch
 # -------------
 if [[ "$1" == "stack" && "$2" == "pre-install" ]]; then
-    if is_service_enabled pvm-q-agt; then
+    if is_service_enabled pvm-q-sea-agt || is_service_enabled pvm-q-sriov-agt; then
         # Install NovaLink if set
         if [[ "$INSTALL_NOVALINK" = "True" ]]; then
             echo_summary "Installing NovaLink"
@@ -97,23 +103,23 @@ elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
     configure_networking_powervm
 
 elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
-    if is_service_enabled pvm-q-agt; then
-        # Initialize and start the PowerVM SEA agent
+    if is_service_enabled pvm-q-sea-agt || is_service_enabled pvm-q-sriov-agt; then
+        # Initialize and start the PowerVM SEA and/or SR-IOV agent
         echo_summary "Starting networking-powervm"
         start_networking_powervm
     fi
 fi
 
 if [[ "$1" == "unstack" ]]; then
-    if is_service_enabled pvm-q-agt; then
-        # Shut down PowerVM SEA agent
+    if is_service_enabled pvm-q-sea-agt || is_service_enabled pvm-q-sriov-agt; then
+        # Shut down PowerVM SEA and/or SR-IOV agent
         echo_summary "Stopping networking-powervm"
         stop_networking_powervm
     fi
 fi
 
 if [[ "$1" == "clean" ]]; then
-    if is_service_enabled pvm-q-agt; then
+    if is_service_enabled pvm-q-sea-agt || is_service_enabled pvm-q-sriov-agt; then
         # Remove any lingering configuration data
         # clean.sh first calls unstack.sh
         echo_summary "Cleaning up networking-powervm and associated data"
