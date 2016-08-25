@@ -69,12 +69,18 @@ class PvmSRIOVMechanismDriver(mech_pvm_base.PvmMechanismDriverBase):
             segment['physical_network'], [])
         profile = context.current.get(portbindings.PROFILE, {})
         # TODO(efried): binding:profile info is not in the 'profile' var!
-        # Redundancy: from binding:profile or the ml2 conf
+        # Redundancy: from binding:profile or the ml2 conf.
         vif_details['redundancy'] = int(profile.get(
             'vnic_required_vfs',
             agent['configurations']['default_redundancy']))
-        # Capacity: from binding:profile or let the platform default
-        cap = profile.get('capacity')
-        vif_details['capacity'] = float(cap) if cap is not None else None
+        # Capacity: from binding:profile or the ml2 conf.  If unspecified in
+        # either, let the platform default.
+        cap = profile.get(
+            'capacity', agent['configurations']['default_capacity'])
+        try:
+            vif_details['capacity'] = float(cap)
+        except (TypeError, ValueError):
+            # cap may be None or 'None' at this point, depending on the source.
+            vif_details['capacity'] = None
 
         return vif_details

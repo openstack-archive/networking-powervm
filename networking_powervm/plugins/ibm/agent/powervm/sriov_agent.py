@@ -55,6 +55,8 @@ class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
         """Set SR-IOV-specific configurations in the agent_state."""
         self.agent_state['configurations']['default_redundancy'] = (
             ACONF.vnic_required_vfs)
+        self.agent_state['configurations']['default_capacity'] = (
+            ACONF.vnic_vf_capacity)
 
     def __init__(self):
         """Constructs the agent."""

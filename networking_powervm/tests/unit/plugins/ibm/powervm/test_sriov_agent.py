@@ -67,6 +67,8 @@ class SRIOVAgentTest(base.BasePVMTestCase):
         # Validate customize_agent_state
         self.assertEqual(
             2, agt.agent_state['configurations']['default_redundancy'])
+        self.assertIsNone(
+            agt.agent_state['configurations']['default_capacity'])
         # Validate parse_bridge_mappings
         br_map = agt.br_map
         self.assertEqual({'default', 'foo', 'bar'}, set(br_map.keys()))
@@ -74,11 +76,14 @@ class SRIOVAgentTest(base.BasePVMTestCase):
         self.assertEqual(['loc3'], br_map['bar'])
         self.assertEqual({'loc1', 'loc4'}, set(br_map['foo']))
 
-        # Ensure conf.vnic_required_vfs affects default_redundancy
+        # Ensure conf.vnic_required_vfs affects default_redundancy & _capacity
         cfg.CONF.set_override('vnic_required_vfs', 3, group='AGENT')
+        cfg.CONF.set_override('vnic_vf_capacity', 0.06, group='AGENT')
         agt = sriov_agent.SRIOVNeutronAgent()
         self.assertEqual(
             3, agt.agent_state['configurations']['default_redundancy'])
+        self.assertEqual(
+            0.06, agt.agent_state['configurations']['default_capacity'])
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.sriov_agent.'
                 'SRIOVNeutronAgent.parse_bridge_mappings', new=mock.Mock())

@@ -38,7 +38,8 @@ class BaseTestPvmMechDriver(base.BasePVMTestCase):
                           'bridge_mappings': {
                               'the_network': ['p1', 'p2'],
                               'the_other_network': ['p3', 'p4']},
-                          'default_redundancy': 4}}
+                          'default_redundancy': '4',
+                          'default_capacity': 'None'}}
 
     def verify_check_segment_for_agent(self, supp_net_types):
         """Validates that the VLAN type is supported by the agent.
@@ -172,6 +173,11 @@ class TestPvmSriovMechDriver(BaseTestPvmMechDriver):
         self.assertEqual(4, vif_dets['redundancy'])
         # platform default capacity
         self.assertIsNone(vif_dets['capacity'])
+
+        # Ensure non-None capacity default comes through
+        self.agent['configurations']['default_capacity'] = '0.04'
+        vif_dets = self.verify_vif_details()
+        self.assertEqual(0.04, vif_dets['capacity'])
 
         # Now with proper values set in profile & segment
         self.segment['physical_network'] = 'the_other_network'

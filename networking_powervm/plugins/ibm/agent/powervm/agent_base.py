@@ -63,8 +63,15 @@ agent_opts = [
                       'polling_interval as it runs in the nearest polling '
                       'loop.')),
     cfg.IntOpt('vnic_required_vfs', default=2, min=1,
-               help='Redundancy level for SR-IOV backed vNIC attachments. '
-                    'Minimum value is 1.')
+               help=_('Redundancy level for SR-IOV backed vNIC attachments. '
+                      'Minimum value is 1.')),
+    cfg.FloatOpt('vnic_vf_capacity',
+                 help=_("Float up to 4dp between 0.0000 and 1.0000 indicating "
+                        "the minimum guaranteed capacity of the VFs backing "
+                        "an SR-IOV vNIC.  Must be a multiple of each physical "
+                        "port's minimum capacity granularity.  If omitted, "
+                        "defaults to the minimum capacity granularity for "
+                        "each port."))
 ]
 
 cfg.CONF.register_opts(agent_opts, "AGENT")

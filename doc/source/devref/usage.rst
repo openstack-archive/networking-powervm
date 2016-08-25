@@ -112,10 +112,21 @@ file.
 | vnic_required_vfs = 2            | SRIOV | (Integer) Redundancy level for the vNIC created to     |
 |                                  |       | back an SR-IOV port.  The value represents the number  |
 |                                  |       | of SR-IOV logical ports to create (one per physical    |
-|                                  |       | port).  The plug operation will fail if the agent      |
-|                                  |       | cannot find enough physical ports with sufficient free |
-|                                  |       | capacity to satisfy this setting.                      |
+|                                  |       | port).  The binding will fail if the agent cannot find |
+|                                  |       | enough physical ports with sufficient free capacity to |
+|                                  |       | satisfy this setting.                                  |
 +----------------------------------+-------+--------------------------------------------------------+
+| vnic_vf_capacity = None          | SRIOV | (Float) Value between 0.0000 and 1.0000 indicating the |
+|                                  |       | minimum guaranteed capacity of the VFs backing the     |
+|                                  |       | SR-IOV vNIC.  Must be a multiple of each physical      |
+|                                  |       | port's minimum capacity granularity, or the binding    |
+|                                  |       | will fail.  If unspecified, the platform defaults      |
+|                                  |       | the capacity for each VF to its backing physical       |
+|                                  |       | port's minimum capacity granularity. [#]_              |
++----------------------------------+-------+--------------------------------------------------------+
+
+.. [#] For more details on SR-IOV logical port capacity, see section 1.3.3 of the
+       `IBM Power Systems SR-IOV Technical Overview and Introduction <https://www.redbooks.ibm.com/redpapers/pdfs/redp5065.pdf>`_.
 
 
 SR-IOV-Backed Neutron Port Creation
@@ -126,30 +137,3 @@ an SR-IOV vNIC::
 
   neutron port-create --vnic-type direct $netid
 
-Certain optional tunables can be specified via the syntax::
-
-  neutron port-create --vnic-type direct $netid -- --binding:profile type=dict {key}={value}[,...]
-
-For example::
-
-  neutron port-create --vnic-type direct $netid -- --binding:profile type=dict vnic_required_vfs=3,capacity=0.06
-
-Supported tunables are as follows:
-
-+---------------------+-----------------------------------------------------------------------------+
-| binding:profile key | Description                                                                 |
-+=====================+=============================================================================+
-| vnic_required_vfs   | (Integer) Redundancy level for the vNIC created to back the port.  The      |
-|                     | value represents the number of SR-IOV logical ports to create (one per      |
-|                     | physical port).  The plug operation will fail if the agent cannot find      |
-|                     | enough physical ports with sufficient free capacity to satisfy this         |
-|                     | setting.  If not specified during port-create, the CONF option of the same  |
-|                     | name is used.                                                               |
-+---------------------+-----------------------------------------------------------------------------+
-| capacity            | (Float) Fractional value between 0.0 and 1.0 indicating the minimum         |
-|                     | quality of service allocated to each SR-IOV logical port backing the vNIC.  |
-|                     | Must be a multiple of the physical port's minimum capacity granularity      |
-|                     | (see ``pvmctl sriov list -d loc min_gran``) for each physical port          |
-|                     | assigned to the specified network.  If not specified during port-create,    |
-|                     | each port's minimum capacity granularity is used.                           |
-+---------------------+-----------------------------------------------------------------------------+
