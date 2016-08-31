@@ -80,6 +80,34 @@ function cleanup_networking_powervm {
     :
 }
 
+# Devstack Required Functions
+# - These are required for devstack to stack properly
+# - They are intentionally left blank here
+
+function neutron_plugin_configure_dhcp_agent {
+    :
+}
+
+function neutron_plugin_install_agent_packages {
+    :
+}
+
+function neutron_plugin_configure_plugin_agent {
+    :
+}
+
+function neutron_plugin_setup_interface_driver {
+    :
+}
+
+function neutron_plugin_configure_l3_agent {
+    :
+}
+
+function neutron_plugin_create_nova_conf {
+    :
+}
+
 # Core Dispatch
 # -------------
 if [[ "$1" == "stack" && "$2" == "pre-install" ]]; then
