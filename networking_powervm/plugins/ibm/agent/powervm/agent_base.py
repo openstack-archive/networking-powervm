@@ -563,7 +563,7 @@ class BasePVMNeutronAgent(object):
         :param provision_reqs: The list of ports to provision.
         """
         try:
-            LOG.debug("Provisioning ports for mac addresses [ %s ]" %
+            LOG.debug("Provisioning ports for mac addresses [ %s ]",
                       ' '.join([x.mac_address for x in provision_reqs]))
             self.provision_devices(provision_reqs)
         except Exception:
