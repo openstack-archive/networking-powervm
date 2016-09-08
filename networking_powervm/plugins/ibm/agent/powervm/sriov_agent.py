@@ -30,6 +30,9 @@ from oslo_log import log as logging
 from networking_powervm._i18n import _LI
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
 from networking_powervm.plugins.ibm.agent.powervm import constants as p_const
+from pypowervm import util as pvm_util
+from pypowervm.wrappers import iocard as pvm_card
+from pypowervm.wrappers import logical_partition as pvm_lpar
 from pypowervm.wrappers import managed_system as pvm_ms
 
 eventlet.monkey_patch()
@@ -105,6 +108,18 @@ class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
                 mapping[label].append(pport_w.loc_code)
         return mapping
 
+    def is_vif_plugged(self, port):
+        """Detect whether the vif associated with the port has been plugged in.
+
+        :param port: Port dict associated with the vif in question.
+        :return: Boolean (or boolean-evaluable) True if the port's vif is
+                 plugged; False otherwise.
+        """
+        # TODO(efried): Replace this slow-and-heavy poll with EventHandler
+        mac = pvm_util.sanitize_mac_for_api(port['mac_address'])
+        return pvm_card.VNIC.search(self.adapter, parent_type=pvm_lpar.LPAR,
+                                    mac=mac)
+
     def rpc_loop(self):
         while True:
             # Refresh the label:physloc mappings.  This must remain atomic, or
@@ -116,8 +131,13 @@ class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
             while True:
                 try:
                     port = self._port_update_queue.get(block=False)
-                    self.update_device_up(self.get_device_details(
-                        port['mac_address']))
+                    # Wait to activate the device until the vif is plugged
+                    if self.is_vif_plugged(port):
+                        self.update_device_up(self.get_device_details(
+                            port['mac_address']))
+                    else:
+                        # Requeue the port to check next iteration.
+                        self._port_update_queue.put(port)
                 except queue.Empty:
                     # No more updates right now
                     break

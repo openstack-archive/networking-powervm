@@ -18,14 +18,10 @@ from oslo_config import cfg
 
 import mock
 
-try:
-    import queue
-except ImportError:
-    import Queue as queue
-
 from networking_powervm.plugins.ibm.agent.powervm import sriov_agent
 from networking_powervm.tests.unit.plugins.ibm.powervm import base
 from pypowervm.tests import test_fixtures as pvm_fx
+from pypowervm.wrappers import logical_partition as pvm_lpar
 
 
 class SRIOVAgentTest(base.BasePVMTestCase):
@@ -87,29 +83,51 @@ class SRIOVAgentTest(base.BasePVMTestCase):
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.sriov_agent.'
                 'SRIOVNeutronAgent.parse_bridge_mappings', new=mock.Mock())
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.sriov_agent.'
-                'queue.Queue.put')
-    def test_update_port(self, mock_qput):
+    @mock.patch('pypowervm.util.sanitize_mac_for_api')
+    @mock.patch('pypowervm.wrappers.iocard.VNIC.search')
+    def test_is_vif_plugged(self, mock_srch, mock_san):
         agt = sriov_agent.SRIOVNeutronAgent()
-        port = {'mac_address': 5}
-        agt._update_port(port)
-        mock_qput.assert_called_once_with(port)
+        port = {'mac_address': 'big_mac'}
+        self.assertEqual(mock_srch.return_value, agt.is_vif_plugged(port))
+        mock_san.assert_called_once_with('big_mac')
+        mock_srch.assert_called_once_with(
+            agt.adapter, parent_type=pvm_lpar.LPAR, mac=mock_san.return_value)
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.sriov_agent.'
                 'SRIOVNeutronAgent.parse_bridge_mappings')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.sriov_agent.'
-                'queue.Queue.get')
+                'SRIOVNeutronAgent.is_vif_plugged')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.update_device_up')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.get_device_details')
     @mock.patch('time.sleep')
-    def test_rpc_loop(self, mock_slp, mock_gdd, mock_udu, mock_qget, mock_pbm):
+    def test_rpc_loop(self, mock_slp, mock_gdd, mock_udu, mock_ivp, mock_pbm):
+        # Also verifies _update_port
         agt = sriov_agent.SRIOVNeutronAgent()
-        mock_qget.side_effect = [{'mac_address': 'mac1'},
-                                 {'mac_address': 'mac2'}, queue.Empty] * 3
-        # Limit to three loops.  Use a weird exception so we know we did it.
-        mock_slp.side_effect = [None, None, KeyboardInterrupt]
+        port1 = {'mac_address': 'mac1'}
+        port2 = {'mac_address': 'mac2'}
+        # Limit to three outer loops.  But let me call it once to set up.
+        sleepiter = iter((True, True, True, False))
+
+        def validate_sleep(interval):
+            # sleep called with overridden polling_interval
+            self.assertEqual(5, interval)
+            if next(sleepiter):
+                # Re-populate the queue after each inner iteration so we can
+                # hit the outer loop multiple times.
+                agt._update_port(port1)
+                agt._update_port(port2)
+            else:
+                # Use a weird exception so we know it's us
+                raise KeyboardInterrupt
+        mock_slp.side_effect = validate_sleep
+
+        # Prepopulate the queue with ports to process
+        validate_sleep(5)
+        # VIF is plugged the second time around, for each vif, on each loop.
+        # VIFs get requeued to the end.
+        mock_ivp.side_effect = [False, False, True, True] * 6
         # Override the polling interval to make sure it comes through
         cfg.CONF.set_override('polling_interval', 5, group='AGENT')
         # Invoke the loop
@@ -118,8 +136,11 @@ class SRIOVAgentTest(base.BasePVMTestCase):
         mock_pbm.assert_has_calls([mock.call()] * 3)
         self.assertEqual(mock_pbm.return_value,
                          agt.agent_state['configurations']['bridge_mappings'])
-        # update_device_up, get_device_details called six times
+        # is_vif_plugged called twice per iteration per port.  The first time
+        # for each vif it returns False, so that port gets requeued at the end.
+        mock_ivp.assert_has_calls(
+            [mock.call(port) for port in (port1, port2)] * 6)
+        # update_device_up & get_device_details called once per port, per outer
+        # iteration.
         mock_udu.assert_has_calls([mock.call(mock_gdd.return_value)] * 6)
         mock_gdd.assert_has_calls([mock.call('mac1'), mock.call('mac2')] * 3)
-        # Sleep called thrice with overridden polling_interval
-        mock_slp.assert_has_calls([mock.call(5)] * 3)
