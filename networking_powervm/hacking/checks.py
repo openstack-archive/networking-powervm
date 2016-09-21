@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.hacking import checks
+from neutron_lib.hacking import checks
 
 
 def no_log_warn(logical_line):
