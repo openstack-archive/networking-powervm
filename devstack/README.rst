@@ -31,7 +31,6 @@ Installing with Devstack
     [[post-config|/$Q_PLUGIN_CONF_FILE]]
     [agent]
     bridge_mappings = ''
-    pvid_update_loops = 180
     automated_powervm_vlan_cleanup = True
 
 4. Run ``stack.sh`` from devstack::
