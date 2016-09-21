@@ -44,16 +44,6 @@ agent_opts = [
                     'Shared Ethernet Adapters.'
                     'Format: <ph_net1>:<sea1>:<vio1>,<ph_net2>:<sea2>:<vio2> '
                     'Example: default:ent5:vios_1,speedy:ent6:vios_1'),
-    cfg.IntOpt('pvid_update_loops', default=180,
-               help='The Port VLAN ID (PVID) of the Client VM\'s Network '
-                    'Interface is updated by this agent.  There is a delay '
-                    'from Nova between when the Neutron Port is assigned '
-                    'to the host, and when the client VIF is created.  This '
-                    'variable indicates how many loops the agent should take '
-                    'until it determines that the port has failed to create '
-                    'from Nova.  If no requests are in the system, the loop '
-                    'will wait a second before checking again.  If requests '
-                    'are in the system, it may take a bit longer.'),
     cfg.BoolOpt('automated_powervm_vlan_cleanup', default=True,
                 help='Determines whether or not the VLANs will be removed '
                      'from the Network Bridge if a VM is removed and it is '
