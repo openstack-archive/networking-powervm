@@ -6,18 +6,18 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 1.0.0.0rc2.dev34\n"
+"Project-Id-Version: networking-powervm 3.0.0.0b3\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2016-04-14 09:09-0400\n"
-"PO-Revision-Date: 2016-04-14 09:09-0400\n"
+"POT-Creation-Date: 2016-09-04 23:10-0400\n"
+"PO-Revision-Date: 2016-09-04 23:10-0400\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.3.2\n"
+"Generated-By: Babel 2.3.4\n"
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:52
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:55
 msgid ""
 "The number of seconds agent will wait between polling when exception is "
 "caught"
@@ -25,7 +25,7 @@ msgstr ""
 "Temps d'attente (secondes) entre deux interrogations lorsqu'une "
 "exception est interceptée"
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:55
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:58
 msgid ""
 "The number of seconds the agent will wait between polling for local "
 "device changes."
@@ -33,7 +33,7 @@ msgstr ""
 "Temps d'attente (secondes) de l'agent entre deux interrogations "
 "sur les changements d'unité locale."
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:58
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:61
 msgid ""
 "The number of seconds the agent should wait between heal/optimize "
 "intervals.  Should be higher than the polling_interval as it runs in the "
@@ -43,39 +43,24 @@ msgstr ""
 "Doit être supérieur à la valeur de polling_interval quand il s'exécute "
 "dans la boucle d'interrogation la plus réduite."
 
-#: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:21
-#, python-format
-msgid "Expected exactly one host; found %(host_count)d"
-msgstr "Précisément un hôte attendu ; trouvé %(host_count)d"
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:66
+msgid "Redundancy level for SR-IOV backed vNIC attachments. Minimum value is 1."
+msgstr "Niveau de redondance pour les connexions vNIC associées SR-IOV. Valeur mini : 1."
 
-#: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:25
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:69
 msgid ""
-"There are no network bridges (ex. Shared Ethernet Adapters) on the "
-"system.  Can not start the Neutron agent."
+"Float up to 4dp between 0.0000 and 1.0000 indicating the minimum "
+"guaranteed capacity of the VFs backing an SR-IOV vNIC.  Must be a "
+"multiple of each physical port's minimum capacity granularity.  If "
+"omitted, defaults to the minimum capacity granularity for each port."
 msgstr ""
-"Aucun pont de réseau (par ex. cartes Ethernet partagées) sur le "
-"système. Impossible de démarrer l'agent Neutron."
-
-#: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:30
-msgid ""
-"The system has more than one network bridge, but the bridge_mappings have"
-" not been specified.  Please configure the bridge_mappings before "
-"proceeding."
-msgstr ""
-"Le système comporte plusieurs ponts de réseau mais les bridge_mappings"
-" n'ont pas été spécifiés. Configurez les mappages de pont (bridge_mappings) "
-"avant de poursuivre."
-
-#: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:36
-#, python-format
-msgid ""
-"Device %(dev)s on Virtual I/O Server %(vios)s was not found.  Unable to "
-"set up physical network %(phys_net)s."
-msgstr ""
-"Unité %(dev)s sur le serveur Virtual I/O Server %(vios)s introuvable. "
-"Impossible de configurer le réseau physique %(phys_net)s."
+"Ecart flottant maxi 4dp entre 0,0000 et 1,0000 indiquant capacité "
+"garantie mini des VF associés à un contrôleur vNIC SR-IOV. Doit être "
+"un multiple de la granularité de capacité mini pour chaque port "
+"physique. Si omis, par défaut granularité capacité mini pour "
+"chaque port."
 
 
-# ENGL1SH_VERS10N 55289_3 DO NOT REMOVE OR CHANGE THIS LINE
+# ENGL1SH_VERS10N 03014_3 DO NOT REMOVE OR CHANGE THIS LINE
 # T9N_SRC_ID 52
-# T9N_SH1P_STR1NG PV131AAP001 3
+# T9N_SH1P_STR1NG PV132AAP001 1
