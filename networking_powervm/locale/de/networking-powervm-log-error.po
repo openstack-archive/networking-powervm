@@ -6,22 +6,54 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 1.0.0.0rc2.dev34\n"
+"Project-Id-Version: networking-powervm 3.0.0.0b3\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2016-04-14 09:09-0400\n"
-"PO-Revision-Date: 2016-04-14 09:09-0400\n"
+"POT-Creation-Date: 2016-09-04 23:10-0400\n"
+"PO-Revision-Date: 2016-09-04 23:10-0400\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.3.2\n"
+"Generated-By: Babel 2.3.4\n"
 
-#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:311
+#: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:337
 msgid "Failed reporting state!"
 msgstr "Melden des Status fehlgeschlagen!"
 
-#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:174
+#: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:23
+#, python-format
+msgid "Expected exactly one host; found %(host_count)d."
+msgstr "Erwartet wurde genau ein Host; gefunden: %(host_count)d."
+
+#: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:27
+msgid ""
+"There are no network bridges (Shared Ethernet Adapters) on the system.  "
+"Can not start the Neutron agent."
+msgstr ""
+"Es gibt keine Netzbrücken (gemeinsam genutzte Ethernet-Adapter) auf dem System. "
+"Neutron-Agent kann nicht gestartet werden."
+
+#: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:32
+msgid ""
+"The system has more than one network bridge, but the bridge_mappings have"
+" not been specified.  Please configure the bridge_mappings before "
+"proceeding."
+msgstr ""
+"Das System enthält mehr als eine Netzbrücke, aber die bridge_mappings wurden"
+" nicht angegeben. Konfigurieren Sie die bridge_mappings, bevor Sie "
+"fortfahren."
+
+#: networking_powervm/plugins/ibm/agent/powervm/exceptions.py:38
+#, python-format
+msgid ""
+"Device %(dev)s on Virtual I/O Server %(vios)s was not found.  Unable to "
+"set up physical network %(phys_net)s."
+msgstr ""
+"Die Einheit %(dev)s wurde nicht auf dem virtuellen E/A-Server %(vios)s gefunden. Es war nicht möglich, "
+"das physische Netz %(phys_net)s einzurichten."
+
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:177
 #, python-format
 msgid ""
 "Unable to update PVID to %(pvid)s for MAC Address %(mac)s as there was no"
@@ -30,12 +62,12 @@ msgstr ""
 "PVID konnte nicht auf %(pvid)s für MAC-Adresse %(mac)s aktualisiert werden, da kein"
 " gültiger Netzadapter gefunden wurde."
 
-#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:182
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:185
 #, python-format
 msgid "Existing Adapter %(num)d: mac %(mac)s, pvid %(pvid)d"
 msgstr "Vorhandener Adapter %(num)d: mac %(mac)s, pvid %(pvid)d"
 
 
-# ENGL1SH_VERS10N 31037_2 DO NOT REMOVE OR CHANGE THIS LINE
+# ENGL1SH_VERS10N 15415_3 DO NOT REMOVE OR CHANGE THIS LINE
 # T9N_SRC_ID 36
-# T9N_SH1P_STR1NG PV131AAP001 3
+# T9N_SH1P_STR1NG PV132AAP001 1
