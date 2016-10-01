@@ -28,6 +28,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from networking_powervm._i18n import _LI
+from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
 from networking_powervm.plugins.ibm.agent.powervm import constants as p_const
 from pypowervm import util as pvm_util
@@ -41,6 +42,24 @@ eventlet.monkey_patch()
 LOG = logging.getLogger(__name__)
 
 ACONF = cfg.CONF.AGENT
+
+# Time out waiting for a port's VIF to be plugged after 20 minutes.
+PORT_TIMEOUT_S = 20 * 60
+
+
+def port_timed_out(port):
+    """Determine if we should stop waiting for this port's vNIC to appear.
+
+    The port's 'updated_at' value gets set when neutron assigns the port to
+    be plugged into an instance.
+
+    :param port: The port dict.  This method uses the 'updated_at' key.
+    :return: True if the port was 'updated' more than PORT_TIMEOUT_S
+             seconds ago.  False otherwise.
+    """
+    then = port['update_received_at']
+    now = time.time()
+    return now - then > PORT_TIMEOUT_S
 
 
 class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
@@ -73,6 +92,8 @@ class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
     def _update_port(self, port):
         LOG.info(_LI('Pushing updated port with mac %s'),
                  port.get('mac_address', '<unknown>'))
+        # Stamp it so we can time it out
+        port['update_received_at'] = time.time()
         self._port_update_queue.put(port)
 
     @property
@@ -131,6 +152,11 @@ class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
             while True:
                 try:
                     port = self._port_update_queue.get(block=False)
+                    if port_timed_out(port):
+                        LOG.warning(_LW("Timed out looking for vNIC with MAC "
+                                        "%s.  Not setting device_up."),
+                                    port['mac_address'])
+                        continue
                     # Wait to activate the device until the vif is plugged
                     if self.is_vif_plugged(port):
                         self.update_device_up(self.get_device_details(
