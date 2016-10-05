@@ -20,8 +20,8 @@ from networking_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
 from networking_powervm.plugins.ibm.agent.powervm import utils
 from networking_powervm.tests.unit.plugins.ibm.powervm import base
 
-from pypowervm import const as pvm_const
-from pypowervm import exceptions as pvm_exc
+from pypowervm.wrappers import logical_partition as pvm_lpar
+from pypowervm.wrappers import managed_system as pvm_ms
 from pypowervm.wrappers import virtual_io_server as pvm_vios
 
 
@@ -47,15 +47,6 @@ class UtilsTest(base.BasePVMTestCase):
 
         return FakeCNA()
 
-    def test_find_cna_for_mac(self):
-        cna1 = self.__cna("1234567890AB")
-        cna2 = self.__cna("123456789012")
-
-        self.assertEqual(cna1, utils.find_cna_for_mac("1234567890AB",
-                                                      [cna1, cna2]))
-        self.assertEqual(None, utils.find_cna_for_mac("9876543210AB",
-                                                      [cna1, cna2]))
-
     def test_norm_mac(self):
         EXPECTED = "12:34:56:78:90:ab"
         self.assertEqual(EXPECTED, utils.norm_mac("12:34:56:78:90:ab"))
@@ -63,33 +54,29 @@ class UtilsTest(base.BasePVMTestCase):
         self.assertEqual(EXPECTED, utils.norm_mac("12:34:56:78:90:AB"))
         self.assertEqual(EXPECTED, utils.norm_mac("1234567890AB"))
 
-    @mock.patch('pypowervm.wrappers.network.NetBridge.wrap')
-    def test_list_bridges(self, mock_wrap):
+    @mock.patch('pypowervm.wrappers.network.NetBridge.get')
+    def test_list_bridges(self, mock_nbrget):
         """Test that we can load the bridges in properly."""
-        mock_wrap.return_value = ['br1', 'br2']
-        mock_adpt = mock.Mock()
-        mock_adpt.read = mock.Mock()
+        mock_nbrget.return_value = ['br1', 'br2']
 
         # Assert that two are read in
-        bridges = utils.list_bridges(mock_adpt, 'host_uuid')
+        bridges = utils.list_bridges('adpt', 'host_uuid')
         self.assertEqual(2, len(bridges))
+        mock_nbrget.assert_called_once_with(
+            'adpt', parent_type=pvm_ms.System, parent_uuid='host_uuid')
 
-    @mock.patch('pypowervm.wrappers.network.VSwitch.wrap')
-    def test_get_vswitch_map(self, mock_wrap):
+    @mock.patch('pypowervm.wrappers.network.VSwitch.get')
+    def test_get_vswitch_map(self, mock_get):
         # Create mocks
-        mock_adpt = mock.Mock()
-        mock_adpt.read = mock.Mock()
-        vswitch = mock.Mock()
-        vswitch.related_href = 'http://9.1.2.3/test'
-        vswitch.switch_id = 0
-        mock_wrap.return_value = [vswitch]
+        mock_get.return_value = [
+            mock.Mock(related_href='http://9.1.2.3/test', switch_id=0),
+            mock.Mock(related_href='http://9.4.5.6/test', switch_id=5)]
 
         # Run test and verify results
-        resp = utils.get_vswitch_map(mock_adpt, 'host_uuid')
-        self.assertEqual('http://9.1.2.3/test', resp[0])
-        mock_adpt.read.assert_called_once_with('ManagedSystem',
-                                               child_type='VirtualSwitch',
-                                               root_id='host_uuid')
+        self.assertEqual({0: 'http://9.1.2.3/test', 5: 'http://9.4.5.6/test'},
+                         utils.get_vswitch_map('adpt', 'host_uuid'))
+        mock_get.assert_called_once_with(
+            'adpt', parent_type=pvm_ms.System, parent_uuid='host_uuid')
 
     def test_find_nb_for_cna(self):
         # Create mocks
@@ -101,8 +88,7 @@ class UtilsTest(base.BasePVMTestCase):
         vswitch_map = {'0': 'http://9.1.2.3/vs1',
                        '1': 'http://9.1.2.3/vs2'}
 
-        mock_client_adpt = mock.MagicMock()
-        mock_client_adpt.vswitch_uri = ('http://9.1.2.3/vs1')
+        mock_client_adpt = mock.MagicMock(vswitch_uri='http://9.1.2.3/vs1')
 
         # Should have a proper URI, so it should match
         resp = utils.find_nb_for_cna(nb_wraps, mock_client_adpt, vswitch_map)
@@ -113,77 +99,43 @@ class UtilsTest(base.BasePVMTestCase):
         resp = utils.find_nb_for_cna(nb_wraps, mock_client_adpt, vswitch_map)
         self.assertIsNone(resp)
 
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                '_find_cnas')
     @mock.patch('pypowervm.tasks.partition.get_partitions')
-    @mock.patch('pypowervm.wrappers.network.CNA.wrap')
-    def test_list_cnas(self, mock_cna_wrap, mock_get_partitions,
-                       mock_find_cnas):
-        """Validates that the CNA's can be iterated against."""
-
-        # Override the VM Entries with a fake CNA
-        class FakeVM(object):
-            @property
-            def uuid(self):
-                return 'fake_uuid'
-        vm = FakeVM()
-
-        def list_vms(adapter, lpars=True, vioses=True, mgmt=None):
-            self.assertTrue(lpars)
-            self.assertFalse(vioses)
-            self.assertIsNone(mgmt)
-            return [vm]
-
-        mock_find_cnas.return_value = [1]
-        mock_get_partitions.side_effect = list_vms
-        mock_cna_wrap.return_value = ['mocked']
-
-        # Get the CNAs and validate
-        cnas = utils.list_cnas(None)
-        self.assertEqual(1, len(cnas))
-
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                '_find_cnas')
-    @mock.patch('pypowervm.tasks.partition.get_partitions')
-    @mock.patch('pypowervm.wrappers.network.CNA.wrap')
-    def test_list_cnas_for_vio(self, mock_cna_wrap, mock_get_partitions,
-                               mock_find_cnas):
-        """Validates the list_cna's method with VIOS as partition types"""
+                '_find_vifs')
+    def test_list_vifs(self, mock_find_vifs, mock_get_partitions):
+        pars = ['par1', 'par2', 'par3']
+        mock_get_partitions.return_value = pars
+        mock_find_vifs.side_effect = ['vif1', 'vif2', 'vif3']
 
-        # Override the VM Entries with a fake CNA
-        class FakeVM(object):
-            @property
-            def uuid(self):
-                return 'fake_uuid'
-        vm = FakeVM()
+        # Default (no VIOS/mgmt)
+        self.assertEqual({'par1': 'vif1', 'par2': 'vif2', 'par3': 'vif3'},
+                         utils.list_vifs('adap', 'vif_class'))
+        mock_get_partitions.assert_called_once_with(
+            'adap', lpars=True, vioses=False, mgmt=False)
+        mock_find_vifs.assert_has_calls(
+            [mock.call('adap', 'vif_class', vm_wrap) for vm_wrap in pars])
 
-        def list_vms(adapter, lpars=True, vioses=True, mgmt=None):
-            self.assertTrue(vioses)
-            self.assertFalse(lpars)
-            self.assertIsNone(mgmt)
-            return [vm]
+        mock_get_partitions.reset_mock()
+        mock_find_vifs.reset_mock()
+        mock_find_vifs.side_effect = ['vif1', 'vif2', 'vif3']
 
-        mock_find_cnas.return_value = [1]
-        mock_get_partitions.side_effect = list_vms
-        mock_cna_wrap.return_value = ['mocked']
-
-        # Get the CNAs and validate
-        cnas = utils.list_cnas(None, 'host_uuid', part_type=pvm_vios.VIOS)
-        self.assertEqual(1, len(cnas))
+        # With VIOS/mgmt
+        self.assertEqual({'par1': 'vif1', 'par2': 'vif2', 'par3': 'vif3'},
+                         utils.list_vifs('adap', 'vif_class',
+                                         include_vios_and_mgmt=True))
+        mock_get_partitions.assert_called_once_with(
+            'adap', lpars=True, vioses=True, mgmt=True)
+        mock_find_vifs.assert_has_calls(
+            [mock.call('adap', 'vif_class', vm_wrap) for vm_wrap in pars])
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
-    @mock.patch('pypowervm.wrappers.virtual_io_server.VIOS.wrap')
-    def test_parse_sea_mappings(self, mock_wrap, mock_list_br):
+    @mock.patch('pypowervm.wrappers.virtual_io_server.VIOS.get')
+    def test_parse_sea_mappings(self, mock_vioget, mock_list_br):
         # Create mocks
-        class FakeVIOS(object):
-            @property
-            def name(self):
-                return '21-25D0A'
-
-            @property
-            def uuid(self):
-                return "4E0B057C-F052-4609-8EDE-071C7FC485BD"
+        mock_vios = mock.Mock()
+        mock_vios.configure_mock(name='21-25D0A',
+                                 uuid="4E0B057C-F052-4609-8EDE-071C7FC485BD")
 
         mock_sea = mock.Mock(
             dev_name='ent8',
@@ -195,11 +147,10 @@ class UtilsTest(base.BasePVMTestCase):
         nb_wrap.uuid = '764f3423-04c5-3b96-95a3-4764065400bd'
         nb_wraps = [nb_wrap]
         mock_list_br.return_value = nb_wraps
-        mock_adpt = mock.MagicMock()
-        mock_wrap.return_value = [FakeVIOS()]
+        mock_vioget.return_value = [mock_vios]
 
         # Run actual test
-        resp = utils.parse_sea_mappings(mock_adpt, 'host_uuid',
+        resp = utils.parse_sea_mappings('adap', 'host_uuid',
                                         'default:ent8:21-25D0A')
 
         # Verify results
@@ -239,62 +190,31 @@ class UtilsTest(base.BasePVMTestCase):
                           utils._parse_empty_bridge_mapping,
                           [proper_wrap, mock.Mock()])
 
-    def test_update_cna_pvid(self):
-        """Validates the update_cna_pvid method."""
-        def build_mock():
-            # Need to rebuild.  Since it returns itself a standard reset will
-            # recurse infinitely.
-            cna = mock.MagicMock()
-            cna.refresh.return_value = cna
-            return cna
-
-        # Attempt happy path
-        cna = build_mock()
-        utils.update_cna_pvid(cna, 5)
-        self.assertEqual(5, cna.pvid)
-        self.assertEqual(1, cna.update.call_count)
-
-        # Raise an error 3 times and make sure it eventually re-raises the root
-        # etag exception
-        cna = build_mock()
-        err_resp = mock.MagicMock()
-        err_resp.status = pvm_const.HTTPStatus.ETAG_MISMATCH
-        error = pvm_exc.HttpError(err_resp)
-
-        cna.update.side_effect = [error, error, error]
-        self.assertRaises(pvm_exc.HttpError, utils.update_cna_pvid, cna, 5)
-        self.assertEqual(3, cna.update.call_count)
-        self.assertEqual(2, cna.refresh.call_count)
-
-        # Raise an error 2 times and then eventually works
-        cna = build_mock()
-        cna.update.side_effect = [error, error, None]
-        utils.update_cna_pvid(cna, 5)
-        self.assertEqual(3, cna.update.call_count)
-        self.assertEqual(2, cna.refresh.call_count)
-
-        # Immediate re-raise of different type of exception
-        cna = build_mock()
-        err_resp.status = pvm_const.HTTPStatus.UNAUTHORIZED
-        cna.update.side_effect = pvm_exc.HttpError(err_resp)
-
-        self.assertRaises(pvm_exc.HttpError, utils.update_cna_pvid, cna, 5)
-        self.assertEqual(1, cna.update.call_count)
-        self.assertEqual(0, cna.refresh.call_count)
-
-    @mock.patch('pypowervm.wrappers.network.CNA.get')
-    def test_find_cnas(self, mock_cna_get):
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
+                '_remove_log_helper')
+    def test_find_cnas(self, mock_rmlog):
+        mock_vif_class = mock.Mock()
         vea1 = mock.Mock(uuid='1', is_tagged_vlan_supported=True)
         vea2 = mock.Mock(uuid='2', is_tagged_vlan_supported=False)
         vea3 = mock.Mock(uuid='3', is_tagged_vlan_supported=True)
+        mock_vif_class.get.return_value = [vea1, vea2, vea3]
 
-        mock_cna_get.return_value = [vea1, vea2, vea3]
+        lpar = mock.Mock(spec=pvm_lpar.LPAR)
+        vios = mock.Mock(spec=pvm_vios.VIOS)
 
         # The LPAR type should include the trunk adapters
-        resp = utils._find_cnas(mock.Mock(), 'vm_uuid')
-        self.assertEqual([vea1, vea2, vea3], resp)
+        self.assertEqual([vea1, vea2, vea3],
+                         utils._find_vifs('adap', mock_vif_class, lpar))
+        mock_vif_class.get.assert_called_once_with(
+            'adap', parent=lpar, helpers=mock_rmlog.return_value)
+        mock_rmlog.assert_called_once_with('adap')
+
+        mock_vif_class.get.reset_mock()
+        mock_rmlog.reset_mock()
 
         # The vios type should ignore the trunk adapters
-        resp = utils._find_cnas(mock.Mock(), 'vm_uuid',
-                                part_type=pvm_vios.VIOS)
-        self.assertEqual([vea2], resp)
+        self.assertEqual([vea2],
+                         utils._find_vifs('adap', mock_vif_class, vios))
+        mock_vif_class.get.assert_called_once_with(
+            'adap', parent=vios, helpers=mock_rmlog.return_value)
+        mock_rmlog.assert_called_once_with('adap')

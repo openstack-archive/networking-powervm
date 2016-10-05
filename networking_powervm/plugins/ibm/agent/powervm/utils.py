@@ -1,4 +1,4 @@
-# Copyright 2014, 2015 IBM Corp.
+# Copyright 2014, 2016 IBM Corp.
 #
 # All Rights Reserved.
 #
@@ -13,6 +13,9 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+"""Provides a set of utilities for API interaction and Neutron."""
+
+import time
 
 from oslo_log import log as logging
 
@@ -32,19 +35,6 @@ from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
 
 LOG = logging.getLogger(__name__)
-
-"""Provides a set of utilities for API interaction and Neutron."""
-
-
-def get_host_uuid(adapter):
-    """Get the System wrapper and its UUID for the (single) host.
-
-    :param adapter: The pypowervm adapter.
-    """
-    syswraps = pvm_ms.System.wrap(adapter.read(pvm_ms.System.schema_type))
-    if len(syswraps) != 1:
-        raise np_exc.MultipleHostsFound(host_count=len(syswraps))
-    return syswraps[0].uuid
 
 
 def parse_sea_mappings(adapter, host_uuid, mapping):
@@ -162,24 +152,6 @@ def norm_mac(mac):
     return ':'.join(mac[i:i + 2] for i in range(0, len(mac), 2))
 
 
-def find_cna_for_mac(mac, client_adpts):
-    """Returns the appropriate client adapter for a given mac address.
-
-    :param mac: The mac address of the client adapter.
-    :param client_adpts: The Client Adapters from pypowervm.
-    :returns: The Client Adapter for the mac.  If one isn't found, then
-              None will be returned.
-    """
-    mac = pvm_util.sanitize_mac_for_api(mac)
-
-    for client_adpt in client_adpts:
-        if client_adpt.mac == mac:
-            return client_adpt
-
-    # None was found.
-    return None
-
-
 def find_nb_for_cna(nb_wraps, client_adpt, vswitch_map):
     """
     Determines the NetworkBridge (if any) that is supporting a client
@@ -220,41 +192,84 @@ def get_vswitch_map(adapter, host_uuid):
     :param host_uuid: The UUID for the host system.
     """
     vswitches = pvm_net.VSwitch.get(
-        adapter, parent_type=pvm_ms.System.schema_type,
-        parent_uuid=host_uuid)
+        adapter, parent_type=pvm_ms.System, parent_uuid=host_uuid)
     resp = {}
     for vswitch in vswitches:
         resp[vswitch.switch_id] = vswitch.related_href
     return resp
 
 
-def list_cnas(adapter, lpar_uuid=None, part_type=pvm_lpar.LPAR):
-    """Lists all of the Client Network Adapters for the running VMs.
+def list_vifs(adapter, vif_class, include_vios_and_mgmt=False):
+    """Map of partition:[VIFs] for a specific VIF type (CNA, VNIC, etc.).
+
+    VIOS trunk adapters are never included (even if include_vios_and_mgmt=True)
 
     :param adapter: The pypowervm adapter.
-    :param lpar_uuid: (Optional) If specified, will only return the CNA's for
-                      a given LPAR ID.
-    :param part_type: (Optional: Default: pvm_lpar.LPAR) Sets which partition
-                      type should have the CNA's listed for.  Either
-                      - pypowervm.wrappers.logical_partition.LPAR
-                      - pypowervm.wrappers.virtual_io_server.VIOS
+    :param vif_class: The pypowervm wrapper class for the VIF-ish type to be
+                      retrieved (CNA, VNIC, etc.).
+    :param include_vios_and_mgmt: If True, the return includes VIFs belonging
+                                  to the management partition; AND non-trunk
+                                  VIFs belonging to VIOS partitions.  If False,
+                                  both of these types are excluded.
+    :return: A map of {lpar_w: [vif_w, ...]} where each vif_w is a wrapper
+             of the specified vif_class.  The vif_w list may be empty for a
+             given lpar_w.
     """
-    # Get the UUIDs of the VMs to query for.
-    if lpar_uuid:
-        vm_uuids = [lpar_uuid]
-    else:
-        LOG.info(_LI("Gathering all of the Virtual Machine UUIDs for a "
-                     "list_cnas call."))
-        vm_uuids = [x.uuid for x in pvm_par.get_partitions(
-                    adapter, lpars=(part_type == pvm_lpar.LPAR),
-                    vioses=(part_type == pvm_vios.VIOS))]
+    # Get the VMs to query for.
+    LOG.info(_LI("Gathering Virtual Machine wrappers for a list_vifs call. "
+                 "Include VIOS and management: %s"), include_vios_and_mgmt)
 
     # Loop through the VMs
-    total_cnas = []
-    for vm_uuid in vm_uuids:
-        total_cnas.extend(_find_cnas(adapter, vm_uuid, part_type=part_type))
+    total_vifs = {}
+    for vm_wrap in pvm_par.get_partitions(adapter, lpars=True,
+                                          vioses=include_vios_and_mgmt,
+                                          mgmt=include_vios_and_mgmt):
+        total_vifs[vm_wrap] = _find_vifs(adapter, vif_class, vm_wrap)
 
-    return total_cnas
+    return total_vifs
+
+
+@pvm_retry.retry(tries=200, delay_func=lambda *a, **k: time.sleep(5),
+                 test_func=lambda *a, **k: True)
+def _find_vifs(adapter, vif_class, vm_wrap):
+    """Return the list of virtual network devices (VIFs) for a partition.
+
+    When vif_class is CNA, this method returns the list of client network
+    adapters.  But it defines what a client network adapter is different from
+    the pypowervm API.  It does this because pypowervm has an odd definition.
+
+    To the SEA agent, a Client Network Adapter is:
+     - ANY pypowervm CNA that is on a LPAR (OpenStack Managed/Unmanaged or
+       possibly even the mgmt LPAR)
+     - All CNAs on the VIOS partition types that are NOT trunk adapters.
+
+    This method returns those two types because it is often used with the
+    heal_and_optimize workflow.  That workflow wants to know all of the VLANs
+    that are in use on the system, so that it can trim out any extra VLANs
+    from the VIOS type VMs trunk adapters (to reduce the broadcast domain).
+
+    :param adapter: The pypowervm API adapter.
+    :param vif_class: The pypowervm wrapper class for the VIF-ish type to be
+                      retrieved (CNA, VNIC, etc.).
+    :param vm_wrap: The partition wrapper (LPAR or VIOS type) whose VIFs are to
+                    be retrieved.
+    """
+    try:
+        vif_list = vif_class.get(
+            adapter, parent=vm_wrap, helpers=_remove_log_helper(adapter))
+
+        # This method returns all of the VIF wrappers.  It will return trunk
+        # adapters on LPARs, but NOT on VIOS type partitions.  Only CNA has the
+        # is_tagged_vlan_supported property; the other types can't be trunk
+        # adapters (TODO(IBM) yet?), so always return them.
+        return [vif for vif in vif_list if isinstance(vm_wrap, pvm_lpar.LPAR)
+                or not getattr(vif, 'is_tagged_vlan_supported', False)]
+    except pvm_exc.HttpError as e:
+        # If it is a 404 (not found) then just skip.
+        if e.response is not None and e.response.status == 404:
+            return []
+        else:
+            raise
 
 
 def _remove_log_helper(adapter):
@@ -270,47 +285,6 @@ def _remove_log_helper(adapter):
 
 
 @pvm_retry.retry()
-def _find_cnas(adapter, vm_uuid, part_type=pvm_lpar.LPAR):
-    """Return the list of client network adapters.
-
-    This method returns the list of client network adapters.  But it defines
-    what a client network adapter is different from the pypowervm API.  It does
-    this because pypowervm has an odd definition.
-
-    To the SEA agent, a Client Network Adapter is:
-     - ANY pypowervm CNA that is on a LPAR (OpenStack Managed/Unmanaged or
-       possibly even the mgmt LPAR)
-     - All CNA's on the VIOS partition types that are NOT trunk adapters.
-
-    This method returns those two types because it is often used with the
-    heal_and_optimize workflow.  That workflow wants to know all of the VLANs
-    that are in use on the system, so that it can trim out any extra VLANs
-    from the VIOS type VMs trunk adapters (to reduce the broadcast domain).
-
-    :param adapter: The pypowervm API adapter
-    :param vm_uuid: The LPAR's UUID
-    :param part_type: The partition type to find CNA's for.  Either
-                      - pypowervm.wrappers.logical_partition.LPAR
-                      - pypowervm.wrappers.virtual_io_server.VIOS
-    """
-    try:
-        cna_list = pvm_net.CNA.get(
-            adapter, parent_type=part_type.schema_type, parent_uuid=vm_uuid,
-            helpers=_remove_log_helper(adapter))
-
-        # This method returns all of the Client Network Adapters.  It will
-        # return trunk adapters on LPARs, but NOT on VIOS type partitions.
-        return [x for x in cna_list if (not x.is_tagged_vlan_supported or
-                                        part_type is pvm_lpar.LPAR)]
-    except pvm_exc.HttpError as e:
-        # If it is a 404 (not found) then just skip.
-        if e.response is not None and e.response.status == 404:
-            return []
-        else:
-            raise
-
-
-@pvm_retry.retry()
 def list_bridges(adapter, host_uuid):
     """
     Queries for the NetworkBridges on the system.  Will return the
@@ -319,9 +293,8 @@ def list_bridges(adapter, host_uuid):
     :param adapter: The pypowervm adapter.
     :param host_uuid: The UUID for the host system.
     """
-    resp = adapter.read(pvm_ms.System.schema_type, root_id=host_uuid,
-                        child_type=pvm_net.NetBridge.schema_type)
-    net_bridges = pvm_net.NetBridge.wrap(resp)
+    net_bridges = pvm_net.NetBridge.get(adapter, parent_type=pvm_ms.System,
+                                        parent_uuid=host_uuid)
 
     if len(net_bridges) == 0:
         LOG.warning(_LW('No NetworkBridges detected on the host.'))
@@ -329,27 +302,37 @@ def list_bridges(adapter, host_uuid):
     return net_bridges
 
 
-def update_cna_pvid(cna, pvid):
-    """This method will update the CNA with a new PVID.
+def device_detail_valid(device_detail, mac, port_id=None):
+    """Validate a return from the get_device_details API.
 
-    Will handle the retry logic surrounding this.  As the CNA may have
-    come from old data.
-
-    :param cna: The CNA wrapper (client network adapter).
-    :param pvid: The new pvid to put on the wrapper.
+    :param device_detail: The detail dict returned from get_device_details
+                          (or one of the list returned from
+                          get_devices_details_list).
+    :param mac: String MAC address issued to get_device_details, for
+                logging.
+    :param port_id: UUID of the neutron port.  If None, the port ID is not
+                    validated.
+    :return: True if the device_detail passes all checks; False otherwise.
     """
+    # A device detail will always come back...even if neutron has
+    # no idea what the port is.  This WILL happen for PowerVM, maybe
+    # an event for the mgmt partition or the secure RMC VIF.  We can
+    # detect if Neutron has full device details by simply querying for
+    # the mac from the device_detail
+    if not device_detail.get('mac_address'):
+        LOG.debug("Ignoring VIF with MAC %(mac)s because neutron doesn't know "
+                  "about it.", {'mac': mac})
+        return False
 
-    def _cna_argmod(this_try, max_tries, *args, **kwargs):
-        # Refresh the CNA to get a new etag
-        LOG.debug("Attempting to re-query a CNA to get latest etag.")
-        cna = args[0]
-        cna.refresh()
-        return args, kwargs
+    if port_id is not None:
+        # If the device's id (really the port uuid) doesn't match,
+        # ignore it.
+        dev_pid = device_detail.get('port_id')
+        if dev_pid is None or port_id != dev_pid:
+            LOG.warning(_LW(
+                "Ignoring port because device_details port_id doesn't match "
+                "the port.\nPort: %(port)s\nDevice detail: %(device_detail)s"),
+                {'port': port_id, 'device_detail': device_detail})
+            return False
 
-    @pvm_retry.retry(argmod_func=_cna_argmod)
-    def _func(cna, pvid):
-        cna.pvid = pvid
-        cna.update()
-
-    # Run the function (w/ retry) to update the PVID
-    _func(cna, pvid)
+    return True
