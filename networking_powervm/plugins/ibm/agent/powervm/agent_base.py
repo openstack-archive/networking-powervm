@@ -1,4 +1,4 @@
-# Copyright 2015 IBM Corp.
+# Copyright 2015, 2016 IBM Corp.
 #
 # All Rights Reserved.
 #
@@ -15,12 +15,9 @@
 #    under the License.
 
 import abc
-import copy
-
 import eventlet
-eventlet.monkey_patch()
+import time
 
-from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service import loopingcall
@@ -33,45 +30,28 @@ from neutron_lib import constants as q_const
 from pypowervm import adapter as pvm_adpt
 from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp
-from pypowervm.tasks import partition as pvm_par
-from pypowervm import util as pvm_util
-from pypowervm.utils import uuid as pvm_uuid
-from pypowervm.wrappers import virtual_io_server as pvm_vios
+from pypowervm.wrappers import event as pvm_evt
+from pypowervm.wrappers import managed_system as pvm_ms
 
 from networking_powervm._i18n import _
 from networking_powervm._i18n import _LE
 from networking_powervm._i18n import _LI
 from networking_powervm._i18n import _LW
+from networking_powervm.plugins.ibm.agent.powervm import prov_req as preq
 from networking_powervm.plugins.ibm.agent.powervm import utils
 
-import time
+eventlet.monkey_patch()
 
 
 LOG = logging.getLogger(__name__)
-
 
 agent_opts = [
     cfg.IntOpt('exception_interval', default=5,
                help=_("The number of seconds agent will wait between "
                       "polling when exception is caught")),
-    cfg.IntOpt('polling_interval', default=2,
-               help=_("The number of seconds the agent will wait between "
-                      "polling for local device changes.")),
     cfg.IntOpt('heal_and_optimize_interval', default=1800,
                help=_('The number of seconds the agent should wait between '
-                      'heal/optimize intervals.  Should be higher than the '
-                      'polling_interval as it runs in the nearest polling '
-                      'loop.')),
-    cfg.IntOpt('vnic_required_vfs', default=2, min=1,
-               help=_('Redundancy level for SR-IOV backed vNIC attachments. '
-                      'Minimum value is 1.')),
-    cfg.FloatOpt('vnic_vf_capacity',
-                 help=_("Float up to 4dp between 0.0000 and 1.0000 indicating "
-                        "the minimum guaranteed capacity of the VFs backing "
-                        "an SR-IOV vNIC.  Must be a multiple of each physical "
-                        "port's minimum capacity granularity.  If omitted, "
-                        "defaults to the minimum capacity granularity for "
-                        "each port."))
+                      'heal/optimize intervals.')),
 ]
 
 cfg.CONF.register_opts(agent_opts, "AGENT")
@@ -81,81 +61,23 @@ a_config.register_root_helper(cfg.CONF)
 ACONF = cfg.CONF.AGENT
 
 
+# Event types requiring refetch of all VIFs for all LPARs.
+FULL_REFETCH_EVENTS = (
+    pvm_evt.EventType.CACHE_CLEARED, pvm_evt.EventType.MISSING_EVENTS,
+    pvm_evt.EventType.NEW_CLIENT)
+# Event types affecting a single object. The object's URI is in Event.data.
+SINGLE_OBJ_EVENTS = (
+    pvm_evt.EventType.INVALID_URI, pvm_evt.EventType.ADD_URI,
+    pvm_evt.EventType.MODIFY_URI, pvm_evt.EventType.HIDDEN_URI,
+    pvm_evt.EventType.VISIBLE_URI, pvm_evt.EventType.CUSTOM_CLIENT_EVENT,
+    pvm_evt.EventType.DELETE_URI)
+
+
 class PVMPluginApi(agent_rpc.PluginApi):
     pass
 
 
-class PVMRpcCallbacks(object):
-    """
-    Provides call backs (as defined in the setup_rpc method within the
-    appropriate Neutron Agent class) that will be invoked upon certain
-    actions from the controller.
-    """
-
-    # This agent supports RPC Version 1.0.  Though agents don't boot unless
-    # 1.1 or higher is specified now.
-    # For reference:
-    #  1.0 Initial version
-    #  1.1 Support Security Group RPC
-    #  1.2 Support DVR (Distributed Virtual Router) RPC
-    RPC_API_VERSION = '1.1'
-
-    def __init__(self, agent):
-        """
-        Creates the call back.  Most of the call back methods will be
-        delegated to the agent.
-
-        :param agent: The owning agent to delegate the callbacks to.
-        """
-        super(PVMRpcCallbacks, self).__init__()
-        self.agent = agent
-
-    def port_update(self, context, **kwargs):
-        port = kwargs['port']
-        self.agent._update_port(port)
-        LOG.debug("port_update RPC received for port: %s", port['id'])
-
-    def network_delete(self, context, **kwargs):
-        network_id = kwargs.get('network_id')
-        LOG.debug("network_delete RPC received for network: %s", network_id)
-
-
-class ProvisionRequest(object):
-    """A request for a Neutron Port to be provisioned.
-
-    The RPC device details provide some additional details that the port does
-    not necessarily have, and vice versa.  This meshes together the required
-    aspects into a single element.
-    """
-
-    def __init__(self, device_detail, lpar_uuid, client_type='vea'):
-        self.segmentation_id = device_detail.get('segmentation_id')
-        self.physical_network = device_detail.get('physical_network')
-        self.mac_address = device_detail.get('mac_address')
-        self.device_owner = device_detail.get('device_owner')
-        self.rpc_device = device_detail
-        self.lpar_uuid = lpar_uuid
-        self.client_type = client_type
-
-    def __eq__(self, other):
-        if not isinstance(other, ProvisionRequest):
-            return False
-
-        # Really just need to check the lpar_uuid and mac.  The rest should
-        # be static and identical.
-        return (other.mac_address == self.mac_address and
-                other.lpar_uuid == self.lpar_uuid)
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __hash__(self):
-        # Mac addresses should not collide.  This should be sufficient for a
-        # hash.  The equals will go just a bit further.
-        return hash(self.mac_address)
-
-
-class CNAEventHandler(pvm_adpt.EventHandler):
+class VIFEventHandler(pvm_adpt.WrapperEventHandler):
     """Listens for Events from the PowerVM API that could be network events.
 
     This event handler will be invoked by the PowerVM API when something occurs
@@ -167,68 +89,75 @@ class CNAEventHandler(pvm_adpt.EventHandler):
     def __init__(self, agent):
         self.agent = agent
         self.adapter = self.agent.adapter
-        self.host_uuid = self.agent.host_uuid
-        self.prov_req_queue = []
+        self.just_started = True
 
-    @lockutils.synchronized('cna_request_queue')
-    def process(self, events):
-        for uri, action in events.items():
-            if action in ['add', 'invalidate']:
-                self.prov_req_queue.extend(self._prov_reqs_for_uri(uri))
+    def _refetch_all(self, prov_req_set):
+        """Populate prov_req_set with ProvisionRequests for all LPARs' VIFs.
 
-    def _prov_reqs_for_uri(self, uri):
-        """Returns set of ProvisionRequests for a URI.
-
-        When the API indicates that a URI is invalid, it will return a
-        List of ProvisionRequests for a given URI.  If the URI is not valid
-        for a ClientNetworkAdapter (CNA) then an empty list will be returned.
+        :param prov_req_set: Set of ProvisionRequests, updated by this method.
         """
-        try:
-            if not pvm_util.is_instance_path(uri):
-                return []
-        except Exception:
-            LOG.warning(_LW('Unable to parse URI %s for provision request '
-                            'assessment.'), uri)
-            return []
+        # Create 'plug' requests for all LPARs' VIFs.  (No VIOSes or management
+        # partition.)
+        lpar_vifs = utils.list_vifs(self.adapter, self.agent.vif_wrapper_class)
+        prov_reqs = preq.ProvisionRequest.for_wrappers(self.agent, lpar_vifs,
+                                                       preq.PLUG)
+        # Obliterate any 'plug' requests; they'll be replaced below if they
+        # still exist.  Leave 'unplug' requests, which should represent VIFs
+        # that will be absent from the comprehensive refetch result.
+        rms = {req for req in prov_req_set if req.action == preq.PLUG}
+        LOG.debug("Removing all existing plug requests: %s", rms)
+        prov_req_set -= rms
+        # Add in the wrapper-based 'plug' requests generated above.
+        # They'll be ignored later if there's no matching neutron port.
+        LOG.debug("Adding new wrapper-based plug requests: %s",
+                  [str(prov_req) for prov_req in prov_reqs])
+        prov_req_set |= set(prov_reqs)
 
-        # The event queue will only return URI's for 'root like' objects.
-        # This is essentially just the LogicalPartition, you can't get the
-        # ClientNetworkAdapter.  So if we find an add/invalidate for the
-        # LogicalPartition, we'll get all the CNAs.
-        #
-        # This check will throw out everything that doesn't include the
-        # LogicalPartition's
-        uuid = pvm_util.get_req_path_uuid(uri, preserve_case=True)
-        if not uri.endswith('LogicalPartition/' + uuid):
-            return []
+    def _process_event(self, event, prov_req_set):
+        """Process a PowerVM event, folding into prov_req_set as appropriate.
 
-        # For the LPAR, get the CNAs.
-        cna_wraps = utils.list_cnas(self.adapter, lpar_uuid=uuid)
-        resp = []
-        for cna_w in cna_wraps:
-            # Build a provision request for each type
-            device_mac = utils.norm_mac(cna_w.mac)
-            device_detail = self.agent.get_device_details(device_mac)
+        :param event: The pypowervm.wrappers.event.Event to be processed.
+        :return: True if the event resulted in an actionable ProvisionRequest
+                 being added; False otherwise.
+        """
+        prov_req = preq.ProvisionRequest.for_event(self.agent, event)
+        if prov_req is None:
+            # Nothing to do
+            return False
 
-            # A device detail will always come back...even if neutron has
-            # no idea what the port is.  This WILL happen for PowerVM, maybe
-            # an event for the mgmt partition or the secure RMC VIF.  We can
-            # detect if Neutron has full device details by simply querying for
-            # the mac from the device_detail
-            if not device_detail.get('mac_address'):
-                continue
+        # Consolidate requests.  Collapse if same action.  Replace if opposite
+        # action.  ProvisionRequest's __eq__ will hit if the MAC and LPAR UUID
+        # match; so this add will find hits for either action.
+        rms = {prq for prq in prov_req_set if prq == prov_req}
+        LOG.debug("Consolidating - removing requests: %s",
+                  [str(rm_preq) for rm_preq in rms])
+        prov_req_set -= rms
+        LOG.debug("Adding new event-based request: %s", str(prov_req))
+        prov_req_set.add(prov_req)
 
-            # Must be good!
-            LOG.info(_LI("Server indicated port update for %(mac)s."),
-                     {'mac': device_detail.get('mac_address')})
-            resp.append(ProvisionRequest(device_detail, uuid))
-        return resp
+    def process(self, events):
+        """Process a list of REST events.
 
-    @lockutils.synchronized('cna_request_queue')
-    def get_queue(self):
-        resp = copy.copy(self.prov_req_queue)
-        self.prov_req_queue = []
-        return resp
+        :param events: A list of pypowervm.wrappers.event.Event wrappers to
+                       handle.
+        """
+        prov_req_set = set()
+        for event in events:
+            if event.etype in FULL_REFETCH_EVENTS:
+                # On initial startup, we'll get a NEW_CLIENT event, *but*
+                # heal_and_optimize will also do a full sweep; so skip this
+                # that first time.
+                if not self.just_started:
+                    # Full refetch of all LPARs' VIFs.  Subsequent events in
+                    # this iteration may still add/remove entries.
+                    self._refetch_all(prov_req_set)
+            elif event.etype in SINGLE_OBJ_EVENTS:
+                self._process_event(event, prov_req_set)
+
+            self.just_started = False
+
+        # Process any port requests accumulated above.
+        self.agent.provision_devices(prov_req_set)
 
 
 class BasePVMNeutronAgent(object):
@@ -240,51 +169,36 @@ class BasePVMNeutronAgent(object):
     integration with the RPC server.
     """
 
+    # This agent supports RPC Version 1.0.  Though agents don't boot unless
+    # 1.1 or higher is specified now.
+    # For reference:
+    #  1.0 Initial version
+    #  1.1 Support Security Group RPC
+    #  1.2 Support DVR (Distributed Virtual Router) RPC
+    RPC_API_VERSION = '1.1'
+
     @abc.abstractproperty
     def agent_id(self):
         raise NotImplementedError()
 
-    def customize_agent_state(self):
-        """Perform subclass-specific adjustments to self.agent_state."""
-        pass
+    @abc.abstractproperty
+    def agent_binary_name(self):
+        """Name of the executable under which the (subclass) agent runs."""
+        raise NotImplementedError()
 
-    def __init__(self, binary_name, agent_type):
-        """Create the PVM neutron agent.
+    @abc.abstractproperty
+    def agent_type(self):
+        raise NotImplementedError()
 
-        :param binary_name: Executable process name for the agent.
-        :param agent_type: Type label, one of constants.AGENT_TYPE_PVM_*
+    @abc.abstractproperty
+    def vif_wrapper_class(self):
+        """The pypowervm wrapper class for the VIF-ish type the agent handles.
+
+        E.g. pypowervm.wrappers.network.CNA, pypowervm.wrappers.iocard.VNIC.
         """
-        # Create the utility class that enables work against the Hypervisors
-        # Shared Ethernet NetworkBridge.
-        self.setup_adapter()
+        raise NotImplementedError()
 
-        # Get the bridge mappings
-        self.br_map = self.parse_bridge_mappings()
-
-        self.agent_state = {
-            'binary': binary_name,
-            'host': cfg.CONF.host,
-            'topic': q_const.L2_AGENT_TOPIC,
-            'configurations': {'bridge_mappings': self.br_map},
-            'agent_type': agent_type,
-            'start_flag': True}
-        self.customize_agent_state()
-
-        # A list of ports that maintains the list of current 'modified' ports
-        self.updated_ports = []
-
-        # Set Up RPC to Server
-        self.setup_rpc()
-
-    def setup_adapter(self):
-        """Configures the pypowervm adapter and utilities."""
-        # Build the adapter.  May need to attempt the connection multiple times
-        # in case the REST server is starting.
-        self.adapter = pvm_adpt.Adapter(
-            pvm_adpt.Session(conn_tries=300),
-            helpers=[log_hlp.log_helper, vio_hlp.vios_busy_retry_helper])
-        self.host_uuid = utils.get_host_uuid(self.adapter)
-
+    @abc.abstractmethod
     def parse_bridge_mappings(self):
         """This method should return the bridge mappings dictionary.
 
@@ -292,7 +206,65 @@ class BasePVMNeutronAgent(object):
         """
         raise NotImplementedError()
 
-    def setup_rpc(self):
+    @abc.abstractmethod
+    def heal_and_optimize(self):
+        """Ensures that the bridging supports all the needed ports.
+
+        This method is invoked periodically (not on every RPC loop).  Its
+        purpose is to ensure that the bridging supports every client VM
+        properly.  If possible, it should also optimize the connections.
+        """
+        raise NotImplementedError()
+
+    def customize_agent_state(self):
+        """Perform subclass-specific adjustments to self.agent_state."""
+        pass
+
+    def __init__(self):
+        """Create the PVM neutron agent. """
+        # Build the adapter.  May need to attempt the connection multiple times
+        # in case the REST server is starting.
+        self.adapter = pvm_adpt.Adapter(
+            pvm_adpt.Session(conn_tries=300),
+            helpers=[log_hlp.log_helper, vio_hlp.vios_busy_retry_helper])
+        self.msys = pvm_ms.System.get(self.adapter)[0]
+        self.host_uuid = self.msys.uuid
+
+        # Get the bridge mappings
+        self.br_map = self.parse_bridge_mappings()
+
+        self.agent_state = {
+            'binary': self.agent_binary_name,
+            'host': cfg.CONF.host,
+            'topic': q_const.L2_AGENT_TOPIC,
+            'configurations': {'bridge_mappings': self.br_map},
+            'agent_type': self.agent_type,
+            'start_flag': True}
+        self.customize_agent_state()
+
+        # Set Up RPC to Server
+        self._setup_rpc()
+
+        # Add VIF event handler to the session.
+        evt_listener = self.adapter.session.get_event_listener()
+        self._vif_event_handler = VIFEventHandler(self)
+        evt_listener.subscribe(self._vif_event_handler)
+
+    def port_update(self, context, **kwargs):
+        """RPC callback indicating that a port has been updated within Neutron.
+
+        This callback is registered as part of _setup_rpc.  It is invoked by
+        the controller when a port is updated in Neutron.
+
+        This is currently a no-op.
+        """
+        port = kwargs['port']
+        LOG.debug('Neutron API port_update RPC received for port '
+                  'id=%(port_id)s, mac=%(mac)s, instance=%(inst_id)s.',
+                  {'port_id': port['id'], 'mac': port.get('mac_address'),
+                   'inst_id': port['device_id']})
+
+    def _setup_rpc(self):
         """Registers the RPC consumers for the plugin."""
         self.topic = topics.AGENT
         self.plugin_rpc = PVMPluginApi(topics.PLUGIN)
@@ -300,16 +272,11 @@ class BasePVMNeutronAgent(object):
 
         self.context = ctx.get_admin_context_without_session()
 
-        # Defines what will be listening for incoming events from the
-        # controller.
-        self.endpoints = [PVMRpcCallbacks(self)]
-
         # Define the listening consumers for the agent.  ML2 only supports
         # these two update types.
-        consumers = [[topics.PORT, topics.UPDATE],
-                     [topics.NETWORK, topics.DELETE]]
+        consumers = [[topics.PORT, topics.UPDATE]]
 
-        self.connection = agent_rpc.create_consumers(self.endpoints,
+        self.connection = agent_rpc.create_consumers([self],
                                                      self.topic,
                                                      consumers)
 
@@ -320,11 +287,11 @@ class BasePVMNeutronAgent(object):
             hb.start(interval=report_interval)
 
     def _report_state(self):
-        """
-        Reports the state of the agent back to the controller.  Controller
-        knows that if a response isn't provided in a certain period of time
-        then the agent is dead.  This call simply tells the controller that
-        the agent is alive.
+        """Reports the state of the agent back to the controller.
+
+        Controller knows that if a response isn't provided in a certain period
+        of time then the agent is dead.  This call simply tells the controller
+        that the agent is alive.
         """
         # TODO(thorst) provide some level of devices connected to this agent.
         try:
@@ -337,14 +304,20 @@ class BasePVMNeutronAgent(object):
             LOG.exception(_LE("Failed reporting state!"))
 
     def update_device_up(self, device):
-        """Calls back to neutron that a device is alive."""
-        LOG.debug("Sending device up to Neutron for %(dev)s",
-                  {'dev': device['device']})
+        """Calls back to neutron that a device is alive.
+
+        :param device: The device detail from get_device[s]_details[_list].
+        """
+        LOG.info(_LI("Sending device up to Neutron for %(dev)s"),
+                 {'dev': device['device']})
         self.plugin_rpc.update_device_up(self.context, device['device'],
                                          self.agent_id, cfg.CONF.host)
 
     def update_device_down(self, device):
-        """Calls back to neutron that a device is down."""
+        """Calls back to neutron that a device is down.
+
+        :param device: The device detail from get_device[s]_details[_list].
+        """
         LOG.warning(_LW("Sending device DOWN to Neutron for %(dev)s"),
                     {'dev': device['device']})
         self.plugin_rpc.update_device_down(self.context, device['device'],
@@ -356,8 +329,8 @@ class BasePVMNeutronAgent(object):
         :param device_mac: The neutron mac addresses for the device to get.
         :return: The device from neutron.
         """
-        return self.plugin_rpc.get_device_details(self.context, device_mac,
-                                                  self.agent_id)
+        return self.plugin_rpc.get_device_details(
+            self.context, utils.norm_mac(device_mac), self.agent_id)
 
     def get_devices_details_list(self, device_macs):
         """Returns list of neutron devices for a list of mac addresses.
@@ -367,130 +340,13 @@ class BasePVMNeutronAgent(object):
         :return: The list of devices from neutron.
         """
         return self.plugin_rpc.get_devices_details_list(
-            self.context, device_macs, self.agent_id)
-
-    def _update_port(self, port):
-        """Invoked to indicate that a port has been updated within Neutron."""
-        LOG.info(_LI('Neutron API indicated port update for %(mac)s.  '
-                     'Checking if hosted by this system.'),
-                 {'mac': port.get('mac_address')})
-        self.updated_ports.append(port)
-
-    def _list_updated_ports(self):
-        """
-        Will return (and then reset) the list of updated ports received
-        from the system.
-        """
-        ports = copy.copy(self.updated_ports)
-        self.updated_ports = []
-        return ports
-
-    def _build_system_prov_requests(self):
-        """Builds ProvisionRequests for the entire system.
-
-        This is used in the heal_and_optimize code path.  After these devices
-        are pulled, something will need to reset their states back to 'up'.
-        That is the requirement of the implementing class.
-
-        :return: The list of ProvisionRequest objects for the entire system.
-        :return: List of LPAR UUIDs on the system.  Will not include the VIOS
-                 uuids (as they are not LPARs) or the MGMT VM (if it is an
-                 LPAR).  This list is meant to represent the VMs that client
-                 workload are running on.
-        :return: The list of all CNAs on the system.  This includes the LPARs'
-                 CNAs (either Trunk adapters or pure Client Network Adapters).
-                 It includes the VIOS CNAs (but not Trunk Adapters), because
-                 those are the bridges out to the external network.
-
-                 The Trunk Adapters on the VIOS are not included because the
-                 heal_and_optimize should be cleaning VLANs off of those.
-                 The overall CNA list is supposed to indicate what is *needed*
-                 by the system.
-        """
-        prov_reqs = []
-
-        # Get all the LPARs...we need to match up the client adapters with a
-        # given device.  Ignore the mgmt LPAR though.
-        lpar_wraps = pvm_par.get_partitions(
-            self.adapter, lpars=True, vioses=False)
-
-        # The lpar_uuids is simply the client VM lpar uuids.  Don't includ mgmt
-        overall_cnas, request_cnas = [], []
-        lpar_cna_map = {}
-
-        # Don't use lpar_uuids, as we want to include mgmt VM for overall_cnas
-        for lpar_wrap in lpar_wraps:
-            lpar_cnas = utils.list_cnas(
-                self.adapter, lpar_uuid=lpar_wrap.uuid)
-            overall_cnas.extend(lpar_cnas)
-
-            # lpar_cna_map is used to build provision requests.  We won't have
-            # a provision request for the mgmt VM.
-            if not lpar_wrap.is_mgmt_partition:
-                lpar_cna_map[lpar_wrap.uuid] = lpar_cnas
-                request_cnas.extend(lpar_cnas)
-
-        # There can be CNA's (non-trunk) on VIOSes as well.  They should be
-        # taken into account for the overall cna's.
-        overall_cnas.extend(utils.list_cnas(self.adapter,
-                                            part_type=pvm_vios.VIOS))
-
-        # Get all the devices that Neutron knows for this host.  Note that
-        # we pass in all of the macs on the system.  For VMs that neutron does
-        # not know about, we get back an empty structure with just the mac.
-        client_macs = [utils.norm_mac(x.mac) for x in request_cnas]
-        devs = self.get_devices_details_list(client_macs)
-
-        # Build out all of the devices that we have available to us.  Some
-        # may be on the system but not part of OpenStack.  Those get ignored.
-        for lpar_uuid in lpar_cna_map.keys():
-            for cna in lpar_cna_map[lpar_uuid]:
-                dev = self._find_dev(cna, devs)
-                if dev:
-                    prov_reqs.append(ProvisionRequest(dev, lpar_uuid))
-
-        return prov_reqs, list(lpar_cna_map.keys()), overall_cnas
-
-    def _find_dev(self, cna, devs):
-        cna_mac = utils.norm_mac(cna.mac)
-        for dev in devs:
-            # A device detail will always come back...even if neutron has
-            # no idea what the port is.  This WILL happen for PowerVM, maybe
-            # an event for the mgmt partition or the secure RMC VIF.  We can
-            # detect if Neutron has full device details by simply querying for
-            # the mac from the device_detail
-            if not dev.get('mac_address'):
-                continue
-
-            if utils.norm_mac(dev.get('mac_address')) == cna_mac:
-                return dev
-        return None
-
-    def heal_and_optimize(self, is_boot, prov_reqs, lpar_uuids, overall_cnas):
-        """Ensures that the bridging supports all the needed ports.
-
-        This method is invoked periodically (not on every RPC loop).  Its
-        purpose is to ensure that the bridging supports every client VM
-        properly.  If possible, it should also optimize the connections.
-
-        :param is_boot: Indicates if this is the first call on boot up of the
-                        agent.
-        :param prov_reqs: A list of ProvisionRequest objects that represent
-                          the Neutron ports that should exist on this system.
-                          It may include ports that have already been
-                          provisioned.  This method should make sure it calls
-                          update_device_up/down afterwards.
-        :param lpar_uuids: A list of the VM UUIDs for the REST API.
-        :param overall_cnas: A list of the systems Client Network Adapters.
-        """
-        raise NotImplementedError()
+            self.context, [utils.norm_mac(mac) for mac in device_macs],
+            self.agent_id)
 
     def provision_devices(self, requests):
         """Invoked when a set of new Neutron ports has been detected.
 
-        This method should provision the bridging for the new devices
-
-        Must be implemented by a subclass.
+        This method should provision the bridging for the new devices.
 
         The subclass implementation may be non-blocking.  This means, if it
         will take a very long time to provision, or has a dependency on
@@ -499,12 +355,20 @@ class BasePVMNeutronAgent(object):
 
         Because of the non-blocking nature of the method, it is required that
         the child class updates the device state upon completion of the device
-        provisioning.  This can be done with the agent's
-        update_device_up/_down methods.
+        provisioning.  This can be done with the agent's update_device_up/_down
+        methods, or by invoking this default implementation.
 
         :param requests: A list of ProvisionRequest objects.
         """
-        raise NotImplementedError()
+        LOG.debug("Provisioning %d devices.", len(requests))
+        for p_req in requests:
+            if p_req.action == preq.PLUG:
+                self.update_device_up(p_req.rpc_device)
+            elif p_req.action == preq.UNPLUG:
+                self.update_device_down(p_req.rpc_device)
+            else:
+                LOG.warning(_LW("Ignoring provision request with unknown "
+                                "action: %s"), str(p_req))
 
     def rpc_loop(self):
         """
@@ -512,44 +376,12 @@ class BasePVMNeutronAgent(object):
         removed.  Will call down to appropriate methods to determine correct
         course of action.
         """
-
-        loop_timer = float(0)
-        loop_interval = float(ACONF.heal_and_optimize_interval)
-        first_loop = True
-
         while True:
             try:
                 # If the loop interval has passed, heal and optimize
-                if time.time() - loop_timer > loop_interval:
-                    LOG.debug("Performing heal and optimization of system.")
-                    prov_reqs, lpar_uuids, overall_cnas =\
-                        self._build_system_prov_requests()
-                    self.heal_and_optimize(first_loop, prov_reqs, lpar_uuids,
-                                           overall_cnas)
-                    first_loop = False
-                    loop_timer = time.time()
-
-                # Determine if there are new ports requested from neutron
-                n_prov_reqs = self.build_prov_requests_from_neutron()
-
-                # Get provision requests from the server
-                s_prov_reqs = self.build_prov_requests_from_server()
-
-                # Get all of the provision requests, but remove any duplicates.
-                # A duplicate could occur if the server and neutron both threw
-                # the same port request.
-                tot_prov_reqs = n_prov_reqs + s_prov_reqs
-                tot_prov_reqs = list(set(tot_prov_reqs))
-
-                # If there are no updated ports, just sleep and re-loop
-                if not tot_prov_reqs:
-                    LOG.debug("No changes, sleeping %d seconds.",
-                              ACONF.polling_interval)
-                    time.sleep(ACONF.polling_interval)
-                    continue
-
-                # Provision the ports on the Network Bridge.
-                self.attempt_provision(tot_prov_reqs)
+                LOG.debug("Performing heal and optimization of system.")
+                self.heal_and_optimize()
+                time.sleep(ACONF.heal_and_optimize_interval)
 
             except Exception as e:
                 LOG.exception(e)
@@ -557,82 +389,3 @@ class BasePVMNeutronAgent(object):
                                 "agent will retry again."))
                 # sleep for a while and re-loop
                 time.sleep(ACONF.exception_interval)
-
-    def build_prov_requests_from_neutron(self):
-        """Builds the provisioning requests from the Neutron Server.
-
-        The Neutron Server may have updated ports.  These port requests will
-        be sent down to the agent as a ProvisionRequest.
-
-        :return: A list of the ProvisionRequests that have come from Neutron.
-        """
-        # Convert the ports to devices.
-        u_ports = self._list_updated_ports()
-        dev_list = [x.get('mac_address') for x in u_ports]
-        # if there are no ports to update, avoid get device details
-        if not dev_list:
-            return []
-        LOG.debug("get device details: %s", dev_list)
-
-        devices = self.get_devices_details_list(dev_list)
-
-        # Build the network devices
-        resp = []
-        for port in u_ports:
-            port_uuid = port.get('id')
-
-            # Make sure we have a UUID
-            if port_uuid is None:
-                continue
-
-            # Make sure the binding host matches this agent.  Otherwise it is
-            # meant to provision on another agent.
-            if port.get('binding:host_id') != cfg.CONF.host:
-                continue
-
-            for dev in devices:
-                # If the device's id (really the port uuid) doesn't match,
-                # ignore it.
-                dev_pid = dev.get('port_id')
-                if dev_pid is None or port_uuid != dev_pid:
-                    continue
-
-                # Valid request.  Add it
-                device_id = port.get('device_id')
-                lpar_uuid = pvm_uuid.convert_uuid_to_pvm(device_id).upper()
-                resp.append(ProvisionRequest(dev, lpar_uuid))
-        return resp
-
-    def build_prov_requests_from_server(self):
-        """Builds provisioning requests from the server.
-
-        The server may detect that a new port has been built on its system.
-        This method provides the agent implementations to detect this, and
-        return a ProvisionRequest object that will be passed into the
-        attempt_provision method.
-
-        This method is not required to be implemented by agent implementations.
-        """
-        return self._cna_event_handler.get_queue()
-
-    def attempt_provision(self, provision_reqs):
-        """Attempts the provisioning of ports.
-
-        This method will attempt to provision a set of ports (by wrapping
-        around the provision_ports method).  If there are issues with
-        provisioning the ports, this method will update the status in the
-        backing Neutron server.
-
-        :param provision_reqs: The list of ports to provision.
-        """
-        try:
-            LOG.debug("Provisioning ports for mac addresses [ %s ]",
-                      ' '.join([x.mac_address for x in provision_reqs]))
-            self.provision_devices(provision_reqs)
-        except Exception:
-            # Set the state of the device as 'down'
-            for p_req in provision_reqs:
-                self.update_device_down(p_req.rpc_device)
-
-            # Reraise the exception
-            raise

@@ -19,14 +19,9 @@ import mock
 from oslo_config import cfg
 from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp
-from pypowervm.tests import test_fixtures as pvm_fx
 
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
 from networking_powervm.tests.unit.plugins.ibm.powervm import base
-
-
-class FakeExc(Exception):
-    pass
 
 
 def FakeNPort(mac, segment_id, phys_network):
@@ -35,9 +30,28 @@ def FakeNPort(mac, segment_id, phys_network):
 
 
 class FakeAgent(agent_base.BasePVMNeutronAgent):
+    def __init__(self):
+        self.mock_vif_wrapper_class = mock.Mock()
+        self.parse_bridge_mappings = mock.Mock()
+        self.heal_and_optimize = mock.Mock()
+        self.customize_agent_state = mock.Mock()
+        super(FakeAgent, self).__init__()
+
     @property
     def agent_id(self):
-        return 'pvm'
+        return 'agent_id'
+
+    @property
+    def agent_binary_name(self):
+        return 'agent_binary_name'
+
+    @property
+    def agent_type(self):
+        return 'agent_type'
+
+    @property
+    def vif_wrapper_class(self):
+        return self.mock_vif_wrapper_class
 
 
 class TestAgentBaseInit(base.BasePVMTestCase):
@@ -45,259 +59,272 @@ class TestAgentBaseInit(base.BasePVMTestCase):
 
     This is typically mocked out in fixtures otherwise.
     """
+    def setUp(self):
+        super(TestAgentBaseInit, self).setUp()
+        self.agtfx = self.useFixture(base.AgentFx())
+        # For init
+        self.adpt = self.agtfx.adpt
+        self.sess = self.agtfx.sess
+        self.adpt.return_value.session = self.sess.return_value
+        self.sysget = self.agtfx.sysget
+        self.sys = self.agtfx.sys
+        # For RPC
+        self.plg_rpt_st_api = self.agtfx.plg_rpt_st_api
+        self.gacwos = self.agtfx.gacwos
+        self.crt_cons = self.agtfx.crt_cons
+        self.filc = self.agtfx.filc
+        # PluginAPI
+        self.plug_api = self.agtfx.plug_api
+        # VIFEventHandler
+        self.veh = self.agtfx.veh
+        # An agent to use
+        self.agt = FakeAgent()
 
-    @mock.patch('pypowervm.tasks.partition.get_mgmt_partition')
+    def test_init(self):
+        """Test BasePVMNeutronAgent __init__, setup_rpc, PVMPluginAPI."""
+        # __init__ part 1
+        self.sess.assert_called_once_with(conn_tries=300)
+        self.adpt.assert_called_once_with(
+            self.sess.return_value, helpers=[log_hlp.log_helper,
+                                             vio_hlp.vios_busy_retry_helper])
+        self.assertEqual(self.adpt.return_value, self.agt.adapter)
+        self.sysget.assert_called_once_with(self.adpt.return_value)
+        self.assertEqual(self.sys, self.agt.msys)
+        self.assertEqual(self.sys.uuid, self.agt.host_uuid)
+        self.agt.parse_bridge_mappings.assert_called_once_with()
+        self.assertEqual(self.agt.parse_bridge_mappings.return_value,
+                         self.agt.br_map)
+        self.assertEqual({
+            'binary': 'agent_binary_name', 'host': cfg.CONF.host,
+            'topic': 'N/A',
+            'configurations': {'bridge_mappings': self.agt .br_map},
+            'agent_type': 'agent_type', 'start_flag': True},
+            self.agt.agent_state)
+        self.agt.customize_agent_state.assert_called_once_with()
+        # _setup_rpc
+        self.assertEqual('q-agent-notifier', self.agt.topic)
+        self.assertIsInstance(self.agt.plugin_rpc, agent_base.PVMPluginApi)
+        self.plug_api.assert_called_once_with('q-plugin')
+        self.plg_rpt_st_api.assert_called_once_with('q-plugin')
+        self.assertEqual(self.plg_rpt_st_api.return_value, self.agt.state_rpc)
+        self.gacwos.assert_called_once_with()
+        self.assertEqual(self.gacwos.return_value, self.agt.context)
+        self.crt_cons.assert_called_once_with(
+            [self.agt], 'q-agent-notifier', [['port', 'update']])
+        self.assertEqual(self.crt_cons.return_value, self.agt.connection)
+        self.filc.assert_called_once_with(self.agt._report_state)
+        self.filc.return_value.start.assert_called_once_with(interval=30.0)
+        # __init__ part 2
+        self.sess.return_value.get_event_listener.assert_called_once_with()
+        self.veh.assert_called_once_with(self.agt)
+        self.assertEqual(self.agt._vif_event_handler, self.veh.return_value)
+        mock_evt_list = self.sess.return_value.get_event_listener.return_value
+        mock_evt_list.subscribe.assert_called_once_with(
+            self.agt._vif_event_handler)
+
+        # No report interval => No looping call
+        self.filc.reset_mock()
+        self.filc.return_value.start.reset_mock()
+        cfg.CONF.set_override('report_interval', 0, group='AGENT')
+        FakeAgent()
+        self.filc.assert_not_called()
+        self.filc.return_value.start.assert_not_called()
+
+    def test_report_state(self):
+        self.agt._report_state()
+        self.assertEqual(0, self.agt.agent_state['configurations']['devices'])
+        self.plg_rpt_st_api.return_value.report_state.assert_called_once_with(
+            self.agt.context, self.agt.agent_state)
+        self.assertNotIn('start_flag', self.agt.agent_state)
+
+    def test_update_device_up(self):
+        self.agt.plugin_rpc.update_device_up = mock.Mock()
+        self.agt.update_device_up({'device': 'the_device'})
+        self.agt.plugin_rpc.update_device_up.assert_called_once_with(
+            self.agt.context, 'the_device', self.agt.agent_id, cfg.CONF.host)
+
+    def test_update_device_down(self):
+        self.agt.plugin_rpc.update_device_down = mock.Mock()
+        self.agt.update_device_down({'device': 'the_device'})
+        self.agt.plugin_rpc.update_device_down.assert_called_once_with(
+            self.agt.context, 'the_device', self.agt.agent_id, cfg.CONF.host)
+
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.norm_mac')
+    def test_get_device_details(self, mock_mac):
+        """Test get_device_details and get_devices_details_list."""
+        # get_device_details
+        self.agt.plugin_rpc.get_device_details = mock.Mock()
+        self.agt.get_device_details('mac')
+        mock_mac.assert_called_once_with('mac')
+        self.agt.plugin_rpc.get_device_details.assert_called_once_with(
+            self.agt.context, mock_mac.return_value, self.agt.agent_id)
+        # get_devices_details_list
+        mock_mac.reset_mock()
+        mock_mac.side_effect = ['mac1', 'mac2', 'mac3']
+        self.agt.plugin_rpc.get_devices_details_list = mock.Mock()
+        self.agt.get_devices_details_list([1, 2, 3])
+        mock_mac.assert_has_calls([mock.call(val) for val in [1, 2, 3]])
+        self.agt.plugin_rpc.get_devices_details_list.assert_called_once_with(
+            self.agt.context, ['mac1', 'mac2', 'mac3'], self.agt.agent_id)
+
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'utils.get_host_uuid')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'CNAEventHandler')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.customize_agent_state')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.setup_rpc', new=mock.Mock())
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.parse_bridge_mappings', new=mock.Mock())
-    @mock.patch('pypowervm.adapter.Adapter')
-    @mock.patch('pypowervm.adapter.Session')
-    def test_setup_adapter(self, mock_session, mock_adapter, mock_cust_as,
-                           mock_evt_handler, mock_host_uuid, mock_get_mgmt):
-        # Set up the mocks.
-        mock_evt_handler.return_value = 'evt_hdlr'
-        mock_host_uuid.return_value = 'host_uuid'
-        mock_get_mgmt.return_value = mock.Mock(uuid='mgmt_uuid')
-
-        # Setup and invoke
-        neut_agt = FakeAgent('bin', 'type')
-
-        # Validate
-        mock_session.assert_called_once_with(conn_tries=300)
-        mock_adapter.assert_called_once_with(
-            mock_session.return_value,
-            helpers=[log_hlp.log_helper, vio_hlp.vios_busy_retry_helper])
-        self.assertEqual('host_uuid', neut_agt.host_uuid)
-        mock_cust_as.assert_called_once_with()
-
-
-class TestAgentBase(base.BasePVMTestCase):
-
-    def build_test_agent(self):
-        """Builds a simple test agent."""
-        self.adpt = self.useFixture(
-            pvm_fx.AdapterFx(traits=pvm_fx.LocalPVMTraits)).adpt
-
-        with mock.patch('networking_powervm.plugins.ibm.agent.powervm.'
-                        'agent_base.BasePVMNeutronAgent.setup_adapter'),\
-                mock.patch('networking_powervm.plugins.ibm.agent.powervm.'
-                           'agent_base.BasePVMNeutronAgent.setup_rpc'),\
-                mock.patch('networking_powervm.plugins.ibm.agent.powervm.'
-                           'agent_base.BasePVMNeutronAgent.'
-                           'parse_bridge_mappings'):
-            agent = FakeAgent('binary_name', 'agent_type')
-            agent.context = mock.Mock()
-            agent.host_uuid = 'host_uuid'
-            agent.plugin_rpc = mock.MagicMock()
-            agent.adapter = self.adpt
-        return agent
-
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.get_devices_details_list')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                'list_cnas')
-    @mock.patch('pypowervm.tasks.partition.get_partitions')
-    def test_build_system_prov_requests(self, mock_get_parts, mock_list_cnas,
-                                        mock_dev_details):
-        agent = self.build_test_agent()
-
-        # Mock data
-        mock_get_parts.return_value = [
-            mock.Mock(uuid='uuid1', is_mgmt_partition=False),
-            mock.Mock(uuid='uuid2', is_mgmt_partition=False),
-            mock.Mock(uuid='uuid3', is_mgmt_partition=False),
-            mock.Mock(uuid='mgmt_uuid', is_mgmt_partition=True)]
-
-        # Include a CNA on the mgmt LPAR.  It should be included in overall
-        # CNA list, but not in the provision request.
-        #
-        # Include a VIOS mac address.  It should be ignored in the provision
-        # requests because it is a VIOS.  But should be accounted for in
-        # the overall CNAs, because it is not a trunk adapter.
-        mock_list_cnas.side_effect = [[mock.Mock(mac='aabbccddeefd')],
-                                      [mock.Mock(mac='aabbccddeefe')],
-                                      [mock.Mock(mac='aabbccddeeff')],
-                                      [mock.Mock(mac='aabbccddeef1')],
-                                      [mock.Mock(mac='vios_mac')]]
-        mock_dev_details.return_value = [
-            {'device': 'aa:bb:cc:dd:ee:fd'}, {'mac_address': 'aabbccddeefe'},
-            {'mac_address': 'aa:bb:cc:dd:ee:ff'}]
-
-        # Run the method
-        prov_reqs, lpar_uuids, cnas = agent._build_system_prov_requests()
-
-        # Validation
-        self.assertEqual(2, len(prov_reqs))
-        self.assertEqual({'uuid1', 'uuid2', 'uuid3'}, set(lpar_uuids))
-        self.assertEqual(5, len(cnas))
-
-    def test_find_dev(self):
-        agent = self.build_test_agent()
-
-        mock_cna = mock.Mock(mac='aa:bb:cc:dd:ee:ff')
-
-        # This is what a device looks like if you call neutron for a port
-        # that exists on the system, but not in Neutron itself.
-        mock_dev1 = {'device': 'aa:bb:cc:dd:ee:ff'}
-
-        # This is a subset of the real data you get back for a proper port.
-        mock_dev2 = {'mac_address': 'aabbccddeeff'}
-
-        self.assertEqual(mock_dev2,
-                         agent._find_dev(mock_cna, [mock_dev1, mock_dev2]))
-
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.provision_devices')
-    def test_attempt_provision(self, mock_provision):
-        """Tests a successful 'attempt_provision' invocation."""
-        agent = self.build_test_agent()
-        provision_reqs = [mock.Mock(rpc_device='a', mac_address='a'),
-                          mock.Mock(rpc_device='b', mac_address='b'),
-                          mock.Mock(rpc_device='c', mac_address='c')]
-
-        # Invoke the test method.
-        agent.attempt_provision(provision_reqs)
-
-        # Validate the provision was invoked.
-        mock_provision.assert_called_with(provision_reqs)
-
+                'BasePVMNeutronAgent.update_device_up')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
                 'BasePVMNeutronAgent.update_device_down')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.provision_devices')
-    def test_attempt_provision_failure(self, mock_provision, mock_dev_down):
-        """Tests a failed 'attempt_provision' invocation."""
-        agent = self.build_test_agent()
+    def test_provision_devices(self, mock_down, mock_up):
+        req1 = base.mk_preq('plug', 'mac1')
+        req2 = base.mk_preq('unplug', 'mac2')
+        req3 = base.mk_preq('plug', 'mac3')
+        req4 = base.mk_preq('frobnicate', 'mac4')
+        self.agt.provision_devices((req1, req2, req3, req4))
+        mock_up.assert_has_calls([mock.call(req.rpc_device) for req in
+                                  (req1, req3)])
+        mock_down.assert_called_once_with(req2.rpc_device)
 
-        devs = [mock.Mock(), mock.Mock(), mock.Mock()]
-        agent.plugin_rpc.get_devices_details_list.return_value = devs
-
-        # Trigger some failure
-        mock_provision.side_effect = FakeExc()
-        provision_reqs = [mock.Mock(rpc_device='a', mac_address='a'),
-                          mock.Mock(rpc_device='b', mac_address='b'),
-                          mock.Mock(rpc_device='c', mac_address='c')]
-
-        # Invoke the test method.
-        self.assertRaises(FakeExc, agent.attempt_provision, provision_reqs)
-
-        # Validate the provision was invoked, but failed.
-        mock_provision.assert_called_with(provision_reqs)
-        self.assertEqual(3, mock_dev_down.call_count)
-
-    @mock.patch('pypowervm.utils.uuid.convert_uuid_to_pvm')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent._list_updated_ports')
-    def test_build_prov_requests_from_neutron(self, mock_list_uports,
-                                              mock_pvid_convert):
-        # Do a base check
-        agent = self.build_test_agent()
-        mock_list_uports.return_value = []
-        self.assertEqual([], agent.build_prov_requests_from_neutron())
-
-        agent.plugin_rpc.get_devices_details_list.assert_not_called()
-
-        cfg.CONF.set_override('host', 'fake_host')
-
-        def build_port(pid, use_good_host=True):
-            if use_good_host:
-                return {'id': pid, 'binding:host_id': 'fake_host'}
-            else:
-                return {'id': pid, 'binding:host_id': 'bad_fake_host'}
-
-        # Only 2 should be created
-        mock_list_uports.return_value = [build_port('1'), {}, build_port('2'),
-                                         build_port('4', use_good_host=False)]
-        devs = [{'port_id': '3'}, {}, {'port_id': '1'}, {'port_id': '2'}]
-        agent.plugin_rpc.get_devices_details_list.return_value = devs
-
-        resp = agent.build_prov_requests_from_neutron()
-        agent.plugin_rpc.get_devices_details_list.assert_called()
-        self.assertEqual(2, len(resp))
+    @mock.patch('time.sleep')
+    def test_rpc_loop(self, mock_sleep):
+        # This is going to be a little weird.  To break out of the while True
+        # loop, we'll have to have the exception path raise a new exception.
+        # Set this up as follows:
+        # 1) Run heal_and_optimize successfully
+        # 2) Run heal_and_optimize successfully
+        # 3) heal_and_optimize raises to prove the exception path
+        # 4) Run heal_and_optimize successfully
+        # 5) heal_and_optimize raises to allow us to bail
+        self.agt.heal_and_optimize.side_effect = [
+            None, None, Exception, None, Exception]
+        # Hence time.sleep should raise on the fifth invocation
+        mock_sleep.side_effect = [None, None, None, None, KeyboardInterrupt]
+        # Run it
+        self.assertRaises(KeyboardInterrupt, self.agt.rpc_loop)
+        self.agt.heal_and_optimize.assert_has_calls([mock.call()] * 5)
+        mock_sleep.assert_has_calls([mock.call(val) for val in
+                                     (1800, 1800, 5, 1800, 5)])
 
 
-class TestProvisionRequest(base.BasePVMTestCase):
-
-    def build_dev(self, segmentation_id, mac):
-        return {'segmentation_id': segmentation_id, 'mac_address': mac,
-                'physical_network': 'default', 'device_owner': 'nova:compute'}
-
-    def build_preq(self, segmentation_id, mac):
-        return agent_base.ProvisionRequest(
-            self.build_dev(segmentation_id, mac), '1')
-
-    def test_duplicate_removal(self):
-        reqs = [self.build_preq(1, 'a'), self.build_preq(1, 'a'),
-                self.build_preq(1, 'b'), self.build_preq(1, 'b'),
-                self.build_preq(2, 'c'), self.build_preq(3, 'd')]
-        reqs = list(set(reqs))
-
-        # Make sure that the list is properly reduced.
-        self.assertEqual(4, len(reqs))
-        expected = [self.build_preq(1, 'a'), self.build_preq(1, 'b'),
-                    self.build_preq(2, 'c'), self.build_preq(3, 'd')]
-        for needle in expected:
-            self.assertIn(needle, reqs)
-
-
-class TestCNAEventHandler(base.BasePVMTestCase):
-    """Validates that the CNAEventHandler can be invoked properly."""
+class TestVIFEventHandler(base.BasePVMTestCase):
+    """Validates that the VIFEventHandler can be invoked properly."""
 
     def setUp(self):
-        super(TestCNAEventHandler, self).setUp()
+        super(TestVIFEventHandler, self).setUp()
 
         self.mock_agent = mock.MagicMock()
-        self.handler = agent_base.CNAEventHandler(self.mock_agent)
+        self.handler = agent_base.VIFEventHandler(self.mock_agent)
+
+    def test_init(self):
+        """Proper initialization of instance attributes."""
+        self.assertEqual(self.mock_agent, self.handler.agent)
+        self.assertEqual(self.mock_agent.adapter, self.handler.adapter)
+        self.assertTrue(self.handler.just_started)
+
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.list_vifs')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.prov_req.'
+                'ProvisionRequest.for_wrappers')
+    def test_refetch_all(self, mock_preqs, mock_vifs):
+        prov_req_set = set()
+        req1 = base.mk_preq('plug', 'mac1', lpar_uuid='lpar1')
+        req2 = base.mk_preq('unplug', 'mac2', lpar_uuid='lpar2')
+        req3 = base.mk_preq('some_other_action', 'mac3', lpar_uuid='lpar3')
+        req4 = base.mk_preq('plug', 'mac4', lpar_uuid='lpar4')
+
+        # 1) No-op
+        mock_preqs.return_value = []
+        self.handler._refetch_all(prov_req_set)
+        mock_vifs.assert_called_once_with(
+            self.handler.adapter, self.mock_agent.vif_wrapper_class)
+        mock_preqs.assert_called_once_with(
+            self.mock_agent, mock_vifs.return_value, 'plug')
+        self.assertEqual(set(), prov_req_set)
+
+        # 2) Add some reqs. (IRL, no 'unplug' reqs would come in here, but this
+        #    sets up for the next test.)
+        mock_preqs.return_value = [req1, req2, req3]
+        self.handler._refetch_all(prov_req_set)
+        # All reqs were added.
+        self.assertEqual(set(mock_preqs.return_value), prov_req_set)
+
+        # 3) a) Trim plug reqs (req1 goes away; req3 stays);
+        #    b) add new reqs (req4);
+        #    c) consolidate (req2 appears once).
+        mock_preqs.return_value = [req2, req4]
+        self.handler._refetch_all(prov_req_set)
+        self.assertEqual({req2, req3, req4}, prov_req_set)
+
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.prov_req.'
+                'ProvisionRequest.for_event')
+    def test_process_event(self, mock_preq):
+        req1 = base.mk_preq('plug', 'mac1', lpar_uuid='lpar1')
+        req2 = base.mk_preq('unplug', 'mac2', lpar_uuid='lpar2')
+        req3 = base.mk_preq('some_other_action', 'mac3', lpar_uuid='lpar3')
+        # "matches" req2
+        req4 = base.mk_preq('plug', 'mac2', lpar_uuid='lpar2')
+        # Seed the req set
+        prov_req_set = {req1, req2, req3}
+
+        # 1) No req returned => no-op
+        mock_preq.return_value = None
+        self.handler._process_event('event', prov_req_set)
+        mock_preq.assert_called_once_with(self.mock_agent, 'event')
+        self.assertEqual({req1, req2, req3}, prov_req_set)
+
+        # 2) Req req4 returned:
+        #    a) req4 added to the set;
+        #    b) "matching" reqs (req2) removed.
+        mock_preq.return_value = req4
+        self.handler._process_event('event', prov_req_set)
+        self.assertEqual({req1, req3, req4}, prov_req_set)
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'CNAEventHandler._prov_reqs_for_uri')
-    def test_process(self, mock_prov):
-        events = {'URI1': 'add', 'URI2': 'delete', 'URI3': 'invalidate'}
-        self.handler.process(events)
+                'VIFEventHandler._refetch_all')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
+                'VIFEventHandler._process_event')
+    def test_process(self, mock_proc_evt, mock_ref_all):
+        def _process_event(event, prs):
+            prs.add('event %s' % event.etype)
+        mock_proc_evt.side_effect = _process_event
 
-        # URI2 shouldn't be invoked.
-        self.assertEqual(2, mock_prov.call_count)
-        mock_prov.assert_any_call('URI1')
-        mock_prov.assert_any_call('URI3')
+        def _refetch_all(prs):
+            prs.add('refetch')
+        mock_ref_all.side_effect = _refetch_all
 
-    def test_prov_reqs_for_uri_not_lpar(self):
-        """Ensures that anything but a LogicalPartition returns empty."""
-        vio_uri = ('https://9.1.2.3:12443/rest/api/uom/ManagedSystem/'
-                   'c5d782c7-44e4-3086-ad15-b16fb039d63b/VirtualIOServer/'
-                   '3443DB77-AED1-47ED-9AA5-3DB9C6CF7089')
-        self.assertEqual([], self.handler._prov_reqs_for_uri(vio_uri))
+        # Refetch events
+        r_evts = [mock.Mock(etype=val) for val in
+                  agent_base.FULL_REFETCH_EVENTS]
+        # Single object events
+        s_evts = [mock.Mock(etype=val) for val in agent_base.SINGLE_OBJ_EVENTS]
+        # Ignored events
+        i_evts = [mock.Mock(etype=val) for val in ('foo', 'bar')]
 
-        ms_uri = ('https://9.1.2.3:12443/rest/api/uom/ManagedSystem/'
-                  'c5d782c7-44e4-3086-ad15-b16fb039d63b')
-        self.assertEqual([], self.handler._prov_reqs_for_uri(ms_uri))
+        # 1) No events => no action, just_started stays True
+        self.assertTrue(self.handler.just_started)
+        self.handler.process([])
+        mock_ref_all.assert_not_called()
+        mock_proc_evt.assert_not_called()
+        self.mock_agent.provision_devices.assert_called_once_with(set())
+        self.assertTrue(self.handler.just_started)
 
-        bad_uri = ('https://9.1.2.3')
-        self.assertEqual([], self.handler._prov_reqs_for_uri(bad_uri))
+        self.mock_agent.provision_devices.reset_mock()
 
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.list_cnas')
-    def test_prov_reqs_for_uri(self, mock_list_cnas):
-        """Happy path testing of prov_reqs_for_uri."""
-        lpar_uri = ('https://9.1.2.3:12443/rest/api/uom/ManagedSystem/'
-                    'c5d782c7-44e4-3086-ad15-b16fb039d63b/LogicalPartition/'
-                    '3443DB77-AED1-47ED-9AA5-3DB9C6CF7089')
+        # 2) Ignorable followed by non-ignorable:
+        #    a) Processors are called;
+        #    b) Non-ignorables are provisioned.
+        self.handler.process([i_evts[0], r_evts[0], s_evts[0]])
+        mock_ref_all.assert_called_once_with(mock.ANY)
+        mock_proc_evt.assert_called_once_with(s_evts[0], mock.ANY)
+        self.mock_agent.provision_devices.assert_called_once_with(
+            {'refetch', 'event INVALID_URI'})
+        self.assertFalse(self.handler.just_started)
 
-        cna1 = mock.MagicMock(mac='aabbccddeeff')
-        cna2 = mock.MagicMock(mac='aabbccddee11')
-        mock_list_cnas.return_value = [cna1, cna2]
+        mock_ref_all.reset_mock()
+        mock_proc_evt.reset_mock()
+        self.mock_agent.provision_devices.reset_mock()
 
-        resp = self.handler._prov_reqs_for_uri(lpar_uri)
-
-        self.assertEqual(2, len(resp))
-        for p_req in resp:
-            self.assertIsInstance(p_req, agent_base.ProvisionRequest)
-
-        # Called the correct macs with the CNA.
-        self.mock_agent.get_device_details.assert_any_call('aa:bb:cc:dd:ee:ff')
-        self.mock_agent.get_device_details.assert_any_call('aa:bb:cc:dd:ee:11')
+        # 3) a) Cover all events;
+        #    b) Non-ignorables are provisioned
+        self.handler.process(s_evts + i_evts + r_evts)
+        mock_ref_all.assert_has_calls([mock.call(mock.ANY)] * len(r_evts))
+        mock_proc_evt.assert_has_calls([mock.call(evt, mock.ANY)
+                                        for evt in s_evts])
+        self.mock_agent.provision_devices.assert_called_once_with(
+            {'refetch'} | {'event %s' % val for val in
+                           agent_base.SINGLE_OBJ_EVENTS})
