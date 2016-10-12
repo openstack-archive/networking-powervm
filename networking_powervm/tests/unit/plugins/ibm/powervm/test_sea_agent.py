@@ -14,43 +14,24 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from oslo_config import cfg
-
+import fixtures
 import mock
 
 from networking_powervm.plugins.ibm.agent.powervm import sea_agent
 from networking_powervm.tests.unit.plugins.ibm.powervm import base
-from pypowervm.tests import test_fixtures as pvm_fx
 
-from neutron import context as ctx
 from neutron_lib import constants as q_const
+from oslo_config import cfg
+from pypowervm.wrappers import logical_partition as pvm_lpar
+from pypowervm.wrappers import network as pvm_net
+from pypowervm.wrappers import virtual_io_server as pvm_vios
 
 
-def FakeClientAdpt(mac, pvid, tagged_vlans):
-    return mock.MagicMock(mac=mac, pvid=pvid, tagged_vlans=tagged_vlans)
-
-
-def FakeNPort(mac, segment_id, phys_network):
-    device = {'physical_network': phys_network, 'segmentation_id': segment_id}
-    return mock.Mock(mac=mac, segmentation_id=segment_id, rpc_device=device,
-                     physical_network=phys_network, lpar_uuid='lpar_uuid')
-
-
-def FakeNB(uuid, pvid, tagged_vlans, addl_vlans):
-    m = mock.MagicMock()
-    m.uuid = uuid
-
-    lg = mock.MagicMock()
-    lg.pvid = pvid
-    lg.tagged_vlans = tagged_vlans
-
-    vlans = [pvid]
-    vlans.extend(tagged_vlans)
-    vlans.extend(addl_vlans)
-    m.list_vlans.return_value = vlans
-
-    m.load_grps = [lg]
-    return m
+def fake_nb(uuid, pvid, tagged_vlans, addl_vlans):
+    return mock.MagicMock(
+        uuid=uuid,
+        load_grps=[mock.MagicMock(pvid=pvid, tagged_vlans=tagged_vlans)],
+        list_vlans=mock.Mock(return_value=[pvid] + tagged_vlans + addl_vlans))
 
 
 class FakeException(Exception):
@@ -63,120 +44,79 @@ class SEAAgentTest(base.BasePVMTestCase):
     def setUp(self):
         super(SEAAgentTest, self).setUp()
 
-        self.adpt = self.useFixture(
-            pvm_fx.AdapterFx(traits=pvm_fx.LocalPVMTraits)).adpt
+        self.agtfx = self.useFixture(base.AgentFx())
 
         # Mock the mgmt uuid
-        mock_get_mgmt_pt = mock.patch('pypowervm.tasks.partition.'
-                                      'get_mgmt_partition')
-        mock_get_mgmt = mock_get_mgmt_pt.start()
-        mock_get_mgmt.return_value = mock.MagicMock(uuid='mgmt_uuid')
-        self.addCleanup(mock_get_mgmt_pt.stop)
+        self.useFixture(fixtures.MockPatch(
+            'pypowervm.tasks.partition.get_mgmt_partition')
+        ).mock.return_value = mock.MagicMock(uuid='mgmt_uuid')
 
-        with mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                        'get_host_uuid'),\
-                mock.patch('networking_powervm.plugins.ibm.agent.'
-                           'powervm.utils.parse_sea_mappings') as mappings:
-            mappings.return_value = {'default': 'nb_uuid'}
-            self.agent = sea_agent.SharedEthernetNeutronAgent()
-            self.agent.adapter = self.adpt
+        self.mock_parse_sea_mappings = self.useFixture(fixtures.MockPatch(
+            'networking_powervm.plugins.ibm.agent.powervm.utils.'
+            'parse_sea_mappings')).mock
+        self.mock_parse_sea_mappings.return_value = {'default': 'nb_uuid'}
 
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                'parse_sea_mappings')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                'get_host_uuid')
-    def test_init(self, mock_get_host_uuid, mock_parse_mapping):
+        cfg.CONF.set_override('bridge_mappings', 'the_bridge_maps',
+                              group='AGENT')
+
+        self.agent = sea_agent.SharedEthernetNeutronAgent()
+
+    def test_init(self):
         """Verifies the integrity of the agent after being initialized."""
-        mock_get_host_uuid.return_value = 'host_uuid'
-        temp_agent = sea_agent.SharedEthernetNeutronAgent()
         self.assertEqual('networking-powervm-sharedethernet-agent',
-                         temp_agent.agent_state.get('binary'))
+                         self.agent.agent_state.get('binary'))
         self.assertEqual(q_const.L2_AGENT_TOPIC,
-                         temp_agent.agent_state.get('topic'))
-        self.assertEqual(True, temp_agent.agent_state.get('start_flag'))
+                         self.agent.agent_state.get('topic'))
+        self.mock_parse_sea_mappings.assert_called_once_with(
+            self.agent.adapter, self.agent.host_uuid, 'the_bridge_maps')
+        self.assertEqual(
+            {'default': 'nb_uuid'},
+            self.agent.agent_state['configurations']['bridge_mappings'])
         self.assertEqual('PowerVM Shared Ethernet agent',
-                         temp_agent.agent_state.get('agent_type'))
-
-    def test_updated_ports(self):
-        """
-        Validates that the updated ports list can be added to and reset
-        properly as needed.
-        """
-        self.assertEqual(0, len(self.agent._list_updated_ports()))
-
-        self.agent._update_port({'mac_address': 'aa'})
-        self.agent._update_port({'mac_address': 'bb'})
-
-        self.assertEqual(2, len(self.agent._list_updated_ports()))
-
-        # This should now be reset back to zero length
-        self.assertEqual(0, len(self.agent._list_updated_ports()))
-
-    def test_report_state(self):
-        """"Validates that the report state functions properly."""
-        # Make sure we had a start flag before the first report
-        self.assertIsNotNone(self.agent.agent_state.get('start_flag'))
-
-        # Mock up the state_rpc
-        self.agent.state_rpc = mock.Mock()
-        self.agent.context = mock.Mock()
-
-        # run the code
-        self.agent._report_state()
-
-        # Devices are not set
-        configs = self.agent.agent_state.get('configurations')
-        self.assertEqual(0, configs['devices'])
-
-        # Make sure we flipped to None after the report.  Also
-        # indicates that we hit the last part of the method and didn't
-        # fail.
-        self.assertIsNone(self.agent.agent_state.get('start_flag'))
+                         self.agent.agent_state.get('agent_type'))
+        self.assertEqual(True, self.agent.agent_state.get('start_flag'))
+        # Other @propertys
+        self.assertEqual('sea-agent-%s' % cfg.CONF.host, self.agent.agent_id)
+        self.assertEqual(pvm_net.CNA, self.agent.vif_wrapper_class)
 
     @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.agent_base.'
-                'BasePVMNeutronAgent.update_device_up')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils')
-    def test_provision_devices(self, mock_utils, mock_dev_up, mock_ensure):
+                'BasePVMNeutronAgent.provision_devices')
+    def test_provision_devices(self, mock_base_prov, mock_ensure):
         """Validates that the provision is invoked with batched VLANs."""
-        self.agent.api_utils = mock_utils
-        self.agent.br_map = {'default': 'nb_uuid'}
-        self.agent.pvid_updater = mock.MagicMock()
-
+        preq1 = base.mk_preq('plug', 'aa', segment_id=20,
+                             phys_network='default')
+        preq2 = base.mk_preq('plug', 'bb', segment_id=22,
+                             phys_network='default')
+        preq3 = base.mk_preq('unplug', 'cc', segment_id=24,
+                             phys_network='default')
         # Invoke
-        self.agent.provision_devices([FakeNPort('aa', 20, 'default'),
-                                      FakeNPort('bb', 22, 'default')])
+        self.agent.provision_devices({preq1, preq2, preq3})
 
         # Validate that both VLANs are in one call
-        mock_ensure.assert_called_once_with(mock.ANY, mock.ANY, 'nb_uuid',
-                                            {20, 22})
+        mock_ensure.assert_called_once_with(
+            self.agent.adapter, self.agent.host_uuid, 'nb_uuid', {20, 22})
 
-        # Validate that the PVID updates were completed
-        self.assertEqual(2, mock_dev_up.call_count)
+        # Validate that the devices were marked up
+        mock_base_prov.assert_called_once_with({preq1, preq2})
 
-    @mock.patch('pypowervm.tasks.network_bridger.ensure_vlans_on_nb')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils')
-    def test_provision_devices_fails(self, mock_utils, mock_ensure):
-        """Validates that behavior of a failed VLAN provision."""
-        self.agent.api_utils = mock_utils
-        self.agent.br_map = {'default': 'nb_uuid'}
-        self.agent.pvid_updater = mock.MagicMock()
-
+        # Validate the behavior of a failed VLAN provision.
+        mock_ensure.reset_mock()
+        mock_base_prov.reset_mock()
         # Have the ensure throw some exception
         mock_ensure.side_effect = FakeException()
 
         # Invoke
         self.assertRaises(FakeException, self.agent.provision_devices,
-                          [FakeNPort('aa', 20, 'default'),
-                           FakeNPort('bb', 22, 'default')])
+                          {preq1, preq2, preq3})
 
         # Validate that both VLANs are in one call.  Should still occur even
         # though no exception.
-        mock_ensure.assert_called_once_with(mock.ANY, mock.ANY, 'nb_uuid',
-                                            {20, 22})
+        mock_ensure.assert_called_once_with(
+            self.agent.adapter, self.agent.host_uuid, 'nb_uuid', {20, 22})
 
-        # However, the pvid updater should not be invoked.
-        self.assertEqual(0, self.agent.pvid_updater.add.call_count)
+        # However, the port update should not be invoked.
+        mock_base_prov.assert_not_called()
 
     @mock.patch('pypowervm.tasks.network_bridger.remove_vlan_from_nb')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.sea_agent.'
@@ -185,30 +125,38 @@ class SEAAgentTest(base.BasePVMTestCase):
                 'SharedEthernetNeutronAgent.provision_devices')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'get_vswitch_map')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.list_cnas')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.list_vifs')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'find_nb_for_cna')
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.prov_req.'
+                'ProvisionRequest.for_wrappers')
     def test_heal_and_optimize(
-            self, mock_find_nb_for_cna, mock_list_bridges, mock_list_cnas,
-            mock_vs_map, mock_prov_devs, mock_get_nb_and_vlan,
+            self, mock_preq, mock_find_nb_for_cna, mock_list_bridges,
+            mock_list_cnas, mock_vs_map, mock_prov_devs, mock_get_nb_and_vlan,
             mock_nbr_remove):
         """Validates the heal and optimization code.  Limited to 3 deletes."""
         # Fake adapters already on system.
-        adpts = [FakeClientAdpt('00', 30, []),
-                 FakeClientAdpt('11', 31, [32, 33, 34])]
-        mock_list_cnas.return_value = adpts
+        mgmt_lpar = mock.Mock(spec=pvm_lpar.LPAR, is_mgmt_partition=True)
+        reg_lpar = mock.Mock(spec=pvm_lpar.LPAR, is_mgmt_partition=False)
+        mgmt_vios = mock.Mock(spec=pvm_vios.VIOS, is_mgmt_partition=True)
+        reg_vios = mock.Mock(spec=pvm_vios.VIOS, is_mgmt_partition=False)
+        cna1 = mock.MagicMock(mac='00', pvid=30, tagged_vlans=[])
+        cna2 = mock.MagicMock(mac='11', pvid=31, tagged_vlans=[32, 33, 34])
+        mock_list_cnas.return_value = {
+            mgmt_lpar: [cna1], reg_lpar: [cna2], mgmt_vios: [], reg_vios: []}
 
         # The neutron data.  These will be 'ensured' on the bridge.
-        self.agent.plugin_rpc = mock.MagicMock()
-        self.agent.plugin_rpc.get_devices_details_list.return_value = [
-            FakeNPort('00', 20, 'default'), FakeNPort('22', 22, 'default')]
-
-        self.agent.br_map = {'default': 'nb_uuid'}
+        preq1 = base.mk_preq('plug', '00', segment_id=20,
+                             phys_network='default')
+        preq2 = base.mk_preq('plug', '22', segment_id=22,
+                             phys_network='default')
+        preq3 = base.mk_preq('unplug', '55', segment_id=55,
+                             phys_network='default')
+        mock_preq.return_value = [preq1, preq2, preq3]
 
         # Mock a provision request
-        p_req = mock.Mock()
         mock_get_nb_and_vlan.return_value = ('nb2_uuid', 23)
 
         # Mock up network bridges.  VLANs 44, 45, and 46 should be deleted
@@ -216,88 +164,54 @@ class SEAAgentTest(base.BasePVMTestCase):
         # as it is in the pending list.  VLAN 48 should be deleted, but will
         # put over the three delete max count (and therefore would be hit in
         # next pass)
-        mock_nb1 = FakeNB('nb_uuid', 20, [], [])
-        mock_nb2 = FakeNB('nb2_uuid', 40, [41, 42, 43], [44, 45, 46, 47, 48])
+        mock_nb1 = fake_nb('nb_uuid', 20, [], [])
+        mock_nb2 = fake_nb('nb2_uuid', 40, [41, 42, 43], [44, 45, 46, 47, 48])
         mock_list_bridges.return_value = [mock_nb1, mock_nb2]
         mock_find_nb_for_cna.return_value = mock_nb2
 
         # Invoke
-        self.agent.heal_and_optimize(False, [p_req], [], [])
+        self.agent.heal_and_optimize()
 
-        # Verify.  One ensure call per net bridge.
-        self.assertEqual(3, mock_nbr_remove.call_count)
-        mock_prov_devs.assert_called_with([p_req])
+        mock_list_cnas.assert_called_once_with(self.agent.adapter, pvm_net.CNA,
+                                               include_vios_and_mgmt=True)
+        # Filtered down to the non-mgmt LPAR
+        mock_preq.assert_called_once_with(self.agent, {reg_lpar: [cna2]},
+                                          'plug')
+        mock_list_bridges.assert_called_once_with(self.agent.adapter,
+                                                  self.agent.host_uuid)
+        mock_prov_devs.assert_called_with([preq1, preq2, preq3])
+        mock_get_nb_and_vlan.assert_has_calls(
+            [mock.call(req.rpc_device, emit_warnings=False) for req in
+             (preq1, preq2, preq3)])
+        mock_vs_map.assert_called_once_with(self.agent.adapter,
+                                            self.agent.host_uuid)
+        mock_find_nb_for_cna.assert_has_calls(
+            [mock.call(mock_list_bridges.return_value, cna,
+                       mock_vs_map.return_value) for cna in (cna1, cna2)],
+            any_order=True)
 
-    @mock.patch('pypowervm.tasks.network_bridger.remove_vlan_from_nb')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.sea_agent.'
-                'SharedEthernetNeutronAgent.provision_devices')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                'get_vswitch_map')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.list_cnas')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                'list_bridges')
-    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
-                'find_nb_for_cna')
-    def test_heal_and_optimize_no_remove(
-            self, mock_find_nb_for_cna, mock_list_bridges, mock_list_cnas,
-            mock_vs_map, mock_prov_devs, mock_nbr_remove):
-        """Validates the heal and optimization code. No remove."""
-        # Fake adapters already on system.
-        adpts = [FakeClientAdpt('00', 30, []),
-                 FakeClientAdpt('11', 31, [32, 33, 34])]
-        mock_list_cnas.return_value = adpts
+        # One remove call per net bridge.
+        mock_nbr_remove.assert_has_calls(
+            [mock.call(
+                self.agent.adapter, self.agent.host_uuid, 'nb2_uuid', vlan)
+             for vlan in (44, 45, 48)], any_order=True)
 
-        # The neutron data.  These will be 'ensured' on the bridge.
-        self.agent.plugin_rpc = mock.MagicMock()
-        self.agent.plugin_rpc.get_devices_details_list.return_value = [
-            FakeNPort('00', 20, 'default'), FakeNPort('22', 22, 'default')]
-
-        self.agent.br_map = {'default': 'nb_uuid'}
-
-        # State that there is a pending VLAN (47) that has yet to be applied
-        self.agent.pvid_updater = mock.MagicMock()
-        self.agent.pvid_updater.pending_vlans = {47}
-
-        # Mock up network bridges.  VLANs 44, 45, and 46 should be deleted
-        # as they are not required by anything.  VLAN 47 should be needed
-        # as it is in the pending list.
-        mock_nb1 = FakeNB('nb_uuid', 20, [], [])
-        mock_nb2 = FakeNB('nb2_uuid', 40, [41, 42, 43], [44, 45, 46, 47])
-        mock_list_bridges.return_value = [mock_nb1, mock_nb2]
-        mock_find_nb_for_cna.return_value = mock_nb2
-
+        # Validate no remove.
+        mock_nbr_remove.reset_mock()
+        mock_prov_devs.reset_mock()
         # Set that we can't do the clean up
-        cfg.CONF.set_override('automated_powervm_vlan_cleanup', False, 'AGENT')
+        cfg.CONF.set_override('automated_powervm_vlan_cleanup', False,
+                              group='AGENT')
 
         # Invoke
-        self.agent.heal_and_optimize(False, [], [], [])
+        self.agent.heal_and_optimize()
 
         # Verify.  One ensure call per net bridge.  Zero for the remove as that
         # has been flagged to not clean up.
-        self.assertEqual(0, mock_nbr_remove.call_count)
-        self.assertEqual(1, mock_prov_devs.call_count)
-
-    @mock.patch('oslo_service.loopingcall.FixedIntervalLoopingCall')
-    @mock.patch.object(ctx, 'get_admin_context_without_session',
-                       return_value=mock.Mock())
-    def test_setup_rpc(self, admin_ctxi, mock_loopingcall):
-        """Validates that the setup_rpc method is properly invoked."""
-        cfg.CONF.set_override('report_interval', 5, group='AGENT')
-
-        # Derives the instance that will be returned when a new loopingcall
-        # is made.  Used for verification
-        instance = mock_loopingcall.return_value
-
-        # Run the method to completion
-        self.agent.setup_rpc()
-
-        # Make sure that the loopingcall had an interval of 5.
-        instance.start.assert_called_with(interval=5)
+        mock_nbr_remove.assert_not_called()
+        mock_prov_devs.assert_called_with([preq1, preq2, preq3])
 
     def test_get_nb_and_vlan(self):
         """Be sure nb uuid and vlan parsed from dev properly."""
-        dev = FakeNPort('a', 100, 'physnet1')
-        self.agent.br_map = {'physnet1': 'uuid1'}
-        uuid, vlan = self.agent._get_nb_and_vlan(dev.rpc_device)
-        self.assertEqual('uuid1', uuid)
-        self.assertEqual(100, vlan)
+        self.assertEqual(('nb_uuid', 100), self.agent._get_nb_and_vlan(
+            {'physical_network': 'default', 'segmentation_id': 100}))

@@ -1,4 +1,4 @@
-# Copyright 2014, 2015 IBM Corp.
+# Copyright 2014, 2016 IBM Corp.
 #
 # All Rights Reserved.
 #
@@ -15,6 +15,8 @@
 #    under the License.
 
 import eventlet
+import sys
+
 eventlet.monkey_patch()
 
 from oslo_config import cfg
@@ -23,14 +25,15 @@ from oslo_log import log as logging
 from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
 from pypowervm.tasks import network_bridger as net_br
+from pypowervm.wrappers import logical_partition as pvm_lpar
+from pypowervm.wrappers import network as pvm_net
 
 from networking_powervm._i18n import _LI
 from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
 from networking_powervm.plugins.ibm.agent.powervm import constants as p_const
+from networking_powervm.plugins.ibm.agent.powervm import prov_req as preq
 from networking_powervm.plugins.ibm.agent.powervm import utils
-
-import sys
 
 
 LOG = logging.getLogger(__name__)
@@ -73,35 +76,24 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
     def agent_id(self):
         return 'sea-agent-%s' % cfg.CONF.host
 
-    def __init__(self):
-        """Constructs the agent."""
-        name = 'networking-powervm-sharedethernet-agent'
-        agent_type = p_const.AGENT_TYPE_PVM_SEA
+    @property
+    def agent_binary_name(self):
+        """Name of the executable under which the SEA agent runs."""
+        return p_const.AGENT_BIN_SEA
 
-        super(SharedEthernetNeutronAgent, self).__init__(name, agent_type)
+    @property
+    def agent_type(self):
+        return p_const.AGENT_TYPE_PVM_SEA
 
-        # Add a CNA event handler to the session.
-        evt_listener = self.adapter.session.get_event_listener()
-        self._cna_event_handler = agent_base.CNAEventHandler(self)
-        evt_listener.subscribe(self._cna_event_handler)
+    @property
+    def vif_wrapper_class(self):
+        return pvm_net.CNA
 
     def parse_bridge_mappings(self):
         return utils.parse_sea_mappings(self.adapter, self.host_uuid,
                                         ACONF.bridge_mappings)
 
-    def build_prov_requests_from_server(self):
-        """Builds provisioning requests from the server.
-
-        The server may detect that a new port has been built on its system.
-        This method provides the agent implementations to detect this, and
-        return a ProvisionRequest object that will be passed into the
-        attempt_provision method.
-
-        This method is not required to be implemented by agent implementations.
-        """
-        return self._cna_event_handler.get_queue()
-
-    def heal_and_optimize(self, is_boot, prov_reqs, lpar_uuids, overall_cnas):
+    def heal_and_optimize(self):
         """Heals the system's network bridges and optimizes.
 
         Will query neutron for all the ports in use on this host.  Ensures that
@@ -114,19 +106,24 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
          - Are not in use by ANY virtual machines on the system.  OpenStack
            managed or not.
          - Are not part of the primary load group on the Network Bridge.
-
-        :param is_boot: Indicates if this is the first call on boot up of the
-                        agent.
-        :param prov_reqs: A list of ProvisionRequest objects that represent
-                          the Neutron ports that should exist on this system.
-                          It may include ports that have already been
-                          provisioned.  This method should make sure it calls
-                          update_device_up/down afterwards.
-        :param lpar_uuids: A list of the VM UUIDs for the REST API.
-        :param overall_cnas: A list of the systems Client Network Adapters.
         """
         LOG.info(_LI("Running the heal and optimize flow."))
 
+        # Get a map of all the partitions and their CNAs.
+        all_lpar_cnas = utils.list_vifs(self.adapter, self.vif_wrapper_class,
+                                        include_vios_and_mgmt=True)
+        # There can be CNAs (non-trunk) on VIOSes as well.  They should be
+        # taken into account for the overall vifs.
+        overall_vifs = [vif for vifs in all_lpar_cnas.values() for vif in vifs]
+        # The lpar_cna_map includes only the client VMs.  Don't include mgmt.
+        lpar_cna_map = {par_w: vifs for par_w, vifs in all_lpar_cnas.items()
+                        if isinstance(par_w, pvm_lpar.LPAR) and
+                        not par_w.is_mgmt_partition}
+
+        # Build out all of the devices that we have available to us.  Some
+        # may be on the system but not part of OpenStack.  Those get ignored.
+        prov_reqs = preq.ProvisionRequest.for_wrappers(self, lpar_cna_map,
+                                                       preq.PLUG)
         # Dictionary of the required VLANs on the Network Bridge
         nb_req_vlans = {}
         nb_wraps = utils.list_bridges(self.adapter, self.host_uuid)
@@ -154,7 +151,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         # (whether managed by OpenStack or not) and then seeing what Network
         # Bridge uses them.
         vswitch_map = utils.get_vswitch_map(self.adapter, self.host_uuid)
-        for client_adpt in overall_cnas:
+        for client_adpt in overall_vifs:
             nb = utils.find_nb_for_cna(nb_wraps, client_adpt, vswitch_map)
             # Could occur if a system is internal only.
             if nb is None:
@@ -233,8 +230,10 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
 
         :param requests: A list of ProvisionRequest objects.
         """
+        # Only handle 'plug' requests.
+        plug_reqs = {req for req in requests if req.action == preq.PLUG}
         nb_to_vlan = {}
-        for p_req in requests:
+        for p_req in plug_reqs:
             # Break the ports into their respective lists broken down by
             # Network Bridge.
             nb_uuid, vlan = self._get_nb_and_vlan(p_req.rpc_device,
@@ -250,14 +249,12 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
             nb_to_vlan[nb_uuid].add(vlan)
 
         # For each bridge, make sure the VLANs are serviced.
-        for nb_uuid in nb_to_vlan.keys():
+        for nb_uuid in nb_to_vlan:
             net_br.ensure_vlans_on_nb(self.adapter, self.host_uuid, nb_uuid,
                                       nb_to_vlan.get(nb_uuid))
 
-        # Now that the bridging is complete, loop through the devices again
-        # and mark them as up.
-        for p_req in requests:
-            self.update_device_up(p_req.rpc_device)
+        # Now that the bridging is complete, let the superclass mark them as up
+        super(SharedEthernetNeutronAgent, self).provision_devices(plug_reqs)
         LOG.debug('Successfully provisioned SEA VLANs for new devices.')
 
     def _get_nb_and_vlan(self, dev, emit_warnings=False):

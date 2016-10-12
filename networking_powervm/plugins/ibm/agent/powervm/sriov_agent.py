@@ -16,50 +16,43 @@
 
 import eventlet
 import sys
-import time
 
-try:
-    import queue
-except ImportError:
-    import Queue as queue
-
+from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
 from oslo_config import cfg
 from oslo_log import log as logging
 
+from networking_powervm._i18n import _
 from networking_powervm._i18n import _LI
-from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
 from networking_powervm.plugins.ibm.agent.powervm import constants as p_const
-from pypowervm import util as pvm_util
+from networking_powervm.plugins.ibm.agent.powervm import prov_req as preq
+from networking_powervm.plugins.ibm.agent.powervm import utils
 from pypowervm.wrappers import iocard as pvm_card
-from pypowervm.wrappers import logical_partition as pvm_lpar
-from pypowervm.wrappers import managed_system as pvm_ms
 
 eventlet.monkey_patch()
 
 
 LOG = logging.getLogger(__name__)
 
+agent_opts = [
+    cfg.IntOpt('vnic_required_vfs', default=2, min=1,
+               help=_('Redundancy level for SR-IOV backed vNIC attachments. '
+                      'Minimum value is 1.')),
+    cfg.FloatOpt('vnic_vf_capacity',
+                 help=_("Float up to 4dp between 0.0000 and 1.0000 indicating "
+                        "the minimum guaranteed capacity of the VFs backing "
+                        "an SR-IOV vNIC.  Must be a multiple of each physical "
+                        "port's minimum capacity granularity.  If omitted, "
+                        "defaults to the minimum capacity granularity for "
+                        "each port."))
+]
+
+cfg.CONF.register_opts(agent_opts, "AGENT")
+a_config.register_agent_state_opts_helper(cfg.CONF)
+a_config.register_root_helper(cfg.CONF)
+
 ACONF = cfg.CONF.AGENT
-
-# Time out waiting for a port's VIF to be plugged after 20 minutes.
-PORT_TIMEOUT_S = 20 * 60
-
-
-def port_timed_out(port):
-    """Determine if we should stop waiting for this port's vNIC to appear.
-
-    The port's 'updated_at' value gets set when neutron assigns the port to
-    be plugged into an instance.
-
-    :param port: The port dict.  This method uses the 'updated_at' key.
-    :return: True if the port was 'updated' more than PORT_TIMEOUT_S
-             seconds ago.  False otherwise.
-    """
-    then = port['update_received_at']
-    now = time.time()
-    return now - then > PORT_TIMEOUT_S
 
 
 class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
@@ -68,10 +61,22 @@ class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
     shared-mode SR-IOV adapters within the Virtual I/O Servers in the form of
     vNIC.  Designed to be compatible with the ML2 Neutron Plugin.
     """
-
     @property
     def agent_id(self):
         return 'sriov-agent-%s' % cfg.CONF.host
+
+    @property
+    def agent_binary_name(self):
+        """Name of the executable under which the SR-IOV agent runs."""
+        return p_const.AGENT_BIN_SRIOV
+
+    @property
+    def agent_type(self):
+        return p_const.AGENT_TYPE_PVM_SRIOV
+
+    @property
+    def vif_wrapper_class(self):
+        return pvm_card.VNIC
 
     def customize_agent_state(self):
         """Set SR-IOV-specific configurations in the agent_state."""
@@ -79,30 +84,6 @@ class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
             ACONF.vnic_required_vfs)
         self.agent_state['configurations']['default_capacity'] = (
             ACONF.vnic_vf_capacity)
-
-    def __init__(self):
-        """Constructs the agent."""
-        name = 'networking-powervm-sriov-agent'
-        agent_type = p_const.AGENT_TYPE_PVM_SRIOV
-        self._msys = None
-        # Synchronized FIFO of port updates
-        self._port_update_queue = queue.Queue()
-        super(SRIOVNeutronAgent, self).__init__(name, agent_type)
-
-    def _update_port(self, port):
-        LOG.info(_LI('Pushing updated port with mac %s'),
-                 port.get('mac_address', '<unknown>'))
-        # Stamp it so we can time it out
-        port['update_received_at'] = time.time()
-        self._port_update_queue.put(port)
-
-    @property
-    def msys(self):
-        if self._msys is None:
-            self._msys = pvm_ms.System.get(self.adapter)[0]
-        else:
-            self._msys = self._msys.refresh()
-        return self._msys
 
     def parse_bridge_mappings(self):
         """Dict of {physnet: [physloc, ...]} for SR-IOV physical ports.
@@ -120,6 +101,7 @@ class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
                                    'U78C9.001.WZS094N-P1-C1-T3',
                                    'U78C9.001.WZS094N-P1-C3-T1']}
         """
+        self.msys = self.msys.refresh()
         mapping = {}
         for sriov in self.msys.asio_config.sriov_adapters:
             for pport_w in sriov.phys_ports:
@@ -129,47 +111,27 @@ class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
                 mapping[label].append(pport_w.loc_code)
         return mapping
 
-    def is_vif_plugged(self, port):
-        """Detect whether the vif associated with the port has been plugged in.
+    def _refresh_bridge_mappings_to_neutron(self):
+        """Refresh the label:physloc mappings and report to neutron."""
+        self.agent_state['configurations']['bridge_mappings'] = (
+            self.parse_bridge_mappings())
+        self._report_state()
 
-        :param port: Port dict associated with the vif in question.
-        :return: Boolean (or boolean-evaluable) True if the port's vif is
-                 plugged; False otherwise.
-        """
-        # TODO(efried): Replace this slow-and-heavy poll with EventHandler
-        mac = pvm_util.sanitize_mac_for_api(port['mac_address'])
-        return pvm_card.VNIC.search(self.adapter, parent_type=pvm_lpar.LPAR,
-                                    mac=mac)
+    def port_update(self, context, **kwargs):
+        """Refresh neutron bridge mappings on port update."""
+        self._refresh_bridge_mappings_to_neutron()
 
-    def rpc_loop(self):
-        while True:
-            # Refresh the label:physloc mappings.  This must remain atomic, or
-            # be synchronized with agent_base._report_state.
-            self.agent_state['configurations']['bridge_mappings'] = (
-                self.parse_bridge_mappings())
+    def heal_and_optimize(self):
+        """Ensure bridge mappings are current, and all VNICs are marked up. """
+        self._refresh_bridge_mappings_to_neutron()
 
-            # Report activation of any new ports
-            while True:
-                try:
-                    port = self._port_update_queue.get(block=False)
-                    if port_timed_out(port):
-                        LOG.warning(_LW("Timed out looking for vNIC with MAC "
-                                        "%s.  Not setting device_up."),
-                                    port['mac_address'])
-                        continue
-                    # Wait to activate the device until the vif is plugged
-                    if self.is_vif_plugged(port):
-                        self.update_device_up(self.get_device_details(
-                            port['mac_address']))
-                    else:
-                        # Requeue the port to check next iteration.
-                        self._port_update_queue.put(port)
-                except queue.Empty:
-                    # No more updates right now
-                    break
-
-            LOG.debug("Sleeping %d seconds.", ACONF.polling_interval)
-            time.sleep(ACONF.polling_interval)
+        # Create ProvisionRequests for all VNICs on all (non-management client)
+        # partitions...
+        lpar_vnic_map = utils.list_vifs(self.adapter, self.vif_wrapper_class)
+        prov_reqs = preq.ProvisionRequest.for_wrappers(self, lpar_vnic_map,
+                                                       preq.PLUG)
+        # ...and mark them 'up' in neutron.
+        self.provision_devices(prov_reqs)
 
 
 def main():
