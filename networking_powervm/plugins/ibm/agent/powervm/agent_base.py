@@ -220,13 +220,21 @@ class BasePVMNeutronAgent(object):
         """Perform subclass-specific adjustments to self.agent_state."""
         pass
 
-    def __init__(self):
-        """Create the PVM neutron agent. """
-        # Build the adapter.  May need to attempt the connection multiple times
-        # in case the REST server is starting.
+    def setup_adapter(self):
+        """Configure the pypowervm adapter.
+
+        This method assigns a valid pypowervm.adapter.Adapter to the
+        self.adapter instance variable.
+        """
+        # Attempt multiple times in case the REST server is starting.
         self.adapter = pvm_adpt.Adapter(
             pvm_adpt.Session(conn_tries=300),
             helpers=[log_hlp.log_helper, vio_hlp.vios_busy_retry_helper])
+
+    def __init__(self):
+        """Create the PVM neutron agent. """
+        self.adapter = None
+        self.setup_adapter()
         self.msys = pvm_ms.System.get(self.adapter)[0]
         self.host_uuid = self.msys.uuid
 

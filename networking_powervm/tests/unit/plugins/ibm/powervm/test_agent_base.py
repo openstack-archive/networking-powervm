@@ -35,6 +35,7 @@ class FakeAgent(agent_base.BasePVMNeutronAgent):
         self.parse_bridge_mappings = mock.Mock()
         self.heal_and_optimize = mock.Mock()
         self.customize_agent_state = mock.Mock()
+        self.setup_adapter_called = mock.Mock()
         super(FakeAgent, self).__init__()
 
     @property
@@ -52,6 +53,10 @@ class FakeAgent(agent_base.BasePVMNeutronAgent):
     @property
     def vif_wrapper_class(self):
         return self.mock_vif_wrapper_class
+
+    def setup_adapter(self):
+        super(FakeAgent, self).setup_adapter()
+        self.setup_adapter_called()
 
 
 class TestAgentBaseInit(base.BasePVMTestCase):
@@ -88,6 +93,8 @@ class TestAgentBaseInit(base.BasePVMTestCase):
             self.sess.return_value, helpers=[log_hlp.log_helper,
                                              vio_hlp.vios_busy_retry_helper])
         self.assertEqual(self.adpt.return_value, self.agt.adapter)
+        # setup_adapter override was invoked
+        self.agt.setup_adapter_called.assert_called_once_with()
         self.sysget.assert_called_once_with(self.adpt.return_value)
         self.assertEqual(self.sys, self.agt.msys)
         self.assertEqual(self.sys.uuid, self.agt.host_uuid)
