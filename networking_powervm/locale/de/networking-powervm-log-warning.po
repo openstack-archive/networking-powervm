@@ -6,14 +6,14 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 3.0.0.0b3\n"
+"Project-Id-Version: networking-powervm 3.0.0.0rc2.dev4\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2016-09-04 23:10-0400\n"
-"PO-Revision-Date: 2016-09-04 23:10-0400\n"
+"POT-Creation-Date: 2016-10-07 02:04-0400\n"
+"PO-Revision-Date: 2016-10-07 02:04-0400\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.3.4\n"
 
@@ -31,52 +31,50 @@ msgstr "Senden von Einheit INAKTIV an Neutron für %(dev)s"
 msgid "Error has been encountered and logged.  The agent will retry again."
 msgstr "Ein Fehler ist aufgetreten und wurde protokolliert. Der Agent versucht es erneut."
 
-#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:161
-msgid "An error occurred while attempting to update the PVID of the virtual NIC."
-msgstr "Beim Versuch der Aktualisierung der PVID der virtuellen NIC ist ein Fehler aufgetreten."
-
-#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:389
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:203
 #, python-format
 msgid "Cleaning up VLAN %(vlan)s from the system. It is no longer in use."
 msgstr "Bereinigung von VLAN %(vlan)s aus dem System. Es wird nicht mehr verwendet."
 
-#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:402
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:216
 #, python-format
 msgid ""
-"System identified that VLAN %(vlan)s is unused. However three VLAN clean "
-"ups have already occurred in this pass. Will clean up in next "
-"optimization pass."
+"System identified that VLAN %(vlan)s is unused. However three VLAN clean ups "
+"have already occurred in this pass. Will clean up in next optimization pass."
 msgstr ""
 "System hat angezeigt, dass VLAN %(vlan)s nicht verwendet wird. Es sind jedoch drei VLAN-Bereinigungen "
-"in diesem Durchlauf erfolgt. Bereinigung erfolgt im nächsten "
-"Optimierungsdurchlauf."
+"in diesem Durchlauf erfolgt. Bereinigung erfolgt im nächsten Optimierungsdurchlauf."
 
-#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:461
+#: networking_powervm/plugins/ibm/agent/powervm/sea_agent.py:273
 #, python-format
 msgid ""
 "Unable to determine the Network Bridge (Shared Ethernet Adapter) for "
-"physical network %s.  Will be unable to determine appropriate "
-"provisioning action."
+"physical network %s.  Will be unable to determine appropriate provisioning "
+"action."
 msgstr ""
 "Die Netzbrücke (gemeinsam genutzter Ethernet-Adapter) für "
 "das physische Netz %s konnte nicht bestimmt werden. Es ist nicht möglich, die entsprechende "
-"Bereitstellungaktion zu bestimmen."
+"Bereitstellungsaktion zu bestimmen."
+
+#: networking_powervm/plugins/ibm/agent/powervm/sriov_agent.py:156
+#, python-format
+msgid "Timed out looking for vNIC with MAC %s.  Not setting device_up."
+msgstr "Zeitlimitüberschreitung beim Suchen nach vNIC mit MAC %s. device_up wird nicht festgelegt."
 
 #: networking_powervm/plugins/ibm/agent/powervm/utils.py:142
 msgid ""
-"The bridge_mappings for the agent was not specified.  There was exactly "
-"one Network Bridge on the system.  Agent is assuming the default network "
-"is backed by the single Network Bridge."
+"The bridge_mappings for the agent was not specified.  There was exactly one "
+"Network Bridge on the system.  Agent is assuming the default network is "
+"backed by the single Network Bridge."
 msgstr ""
-"Die bridge_mappings für den Agent wurden nicht angegeben. Es gab genau "
-"eine Netzbrücke im System. Der Agent setzt voraus, dass das Standardnetz "
+"Die bridge_mappings für den Agenten wurden nicht angegeben. Es gab genau eine "
+"Netzbrücke im System. Der Agent setzt voraus, dass das Standardnetz "
 "durch die einzige Netzbrücke gesichert wird."
 
 #: networking_powervm/plugins/ibm/agent/powervm/utils.py:327
 msgid "No NetworkBridges detected on the host."
 msgstr "Im Host wurden keine Netzbrücken erkannt."
 
-
-# ENGL1SH_VERS10N 10418_4 DO NOT REMOVE OR CHANGE THIS LINE
+# ENGL1SH_VERS10N 43250_4 DO NOT REMOVE OR CHANGE THIS LINE
 # T9N_SRC_ID 37
-# T9N_SH1P_STR1NG PV132AAP001 1
+# T9N_SH1P_STR1NG PV132AAP001 2

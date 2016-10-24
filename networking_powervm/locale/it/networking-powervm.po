@@ -6,14 +6,14 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 3.0.0.0b3\n"
+"Project-Id-Version: networking-powervm 3.0.0.0rc2.dev4\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2016-09-04 23:10-0400\n"
-"PO-Revision-Date: 2016-09-04 23:10-0400\n"
+"POT-Creation-Date: 2016-10-07 02:04-0400\n"
+"PO-Revision-Date: 2016-10-07 02:04-0400\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.3.4\n"
 
@@ -27,11 +27,11 @@ msgstr ""
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:58
 msgid ""
-"The number of seconds the agent will wait between polling for local "
-"device changes."
+"The number of seconds the agent will wait between polling for local device "
+"changes."
 msgstr ""
-"Il numero di secondi che l'agent attenderà tra i pooling per "
-"le modifiche al dispositivo."
+"Il numero di secondi per cui l'agent attenderà tra il polling per le "
+"modifiche dei dispositivi locali."
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:61
 msgid ""
@@ -40,26 +40,27 @@ msgid ""
 "nearest polling loop."
 msgstr ""
 "Il numero di secondi in cui l'agent resterà in attesa tra gli "
-"intervalli. Deve essere maggiore del polling_interval poiché viene eseguito "
+"intervalli di ripristino/ottimizzazione.  Deve essere maggiore del polling_interval poiché viene eseguito "
 "nel loop di polling più vicino."
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:66
-msgid "Redundancy level for SR-IOV backed vNIC attachments. Minimum value is 1."
-msgstr "Livello di ridondanza per gli allegati vNIC con supporto di SR-IOV- Il valore minimo è 1."
+msgid ""
+"Redundancy level for SR-IOV backed vNIC attachments. Minimum value is 1."
+msgstr ""
+"Livello di ridondanza per gli allegati vNIC con supporto di SR-IOV- Il valore minimo è 1."
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:69
 msgid ""
-"Float up to 4dp between 0.0000 and 1.0000 indicating the minimum "
-"guaranteed capacity of the VFs backing an SR-IOV vNIC.  Must be a "
-"multiple of each physical port's minimum capacity granularity.  If "
-"omitted, defaults to the minimum capacity granularity for each port."
+"Float up to 4dp between 0.0000 and 1.0000 indicating the minimum guaranteed "
+"capacity of the VFs backing an SR-IOV vNIC.  Must be a multiple of each "
+"physical port's minimum capacity granularity.  If omitted, defaults to the "
+"minimum capacity granularity for each port."
 msgstr ""
 "Valore a virgola mobile fino a 4 posizioni decimali tra 0,0000 e 1,0000 che indica la capacità minima "
-"garantita delle VF che supportano un vNIC SR-IOV. Deve essere un "
-"multiplo della granularità della capacità minima di ciascuna porta fisica. Se"
-"viene omesso, viene utilizzata per impostazione predefinita la granularità della capacità minima per ciascuna porta."
+"garantita delle VF che supportano un vNIC SR-IOV. Deve essere un multiplo della "
+"granularità della capacità minima di ciascuna porta fisica. Se viene omesso, viene utilizzata per impostazione predefinita la "
+" granularità della capacità minima per ciascuna porta."
 
-
-# ENGL1SH_VERS10N 03014_3 DO NOT REMOVE OR CHANGE THIS LINE
+# ENGL1SH_VERS10N 43021_3 DO NOT REMOVE OR CHANGE THIS LINE
 # T9N_SRC_ID 52
-# T9N_SH1P_STR1NG PV132AAP001 1
+# T9N_SH1P_STR1NG PV132AAP001 2
