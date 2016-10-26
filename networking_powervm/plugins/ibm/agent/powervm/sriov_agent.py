@@ -113,8 +113,11 @@ class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
 
     def _refresh_bridge_mappings_to_neutron(self):
         """Refresh the label:physloc mappings and report to neutron."""
-        self.agent_state['configurations']['bridge_mappings'] = (
-            self.parse_bridge_mappings())
+        LOG.debug("Refreshing bridge mappings to neutron.  Before: %s",
+                  self.agent_state['configurations']['bridge_mappings'])
+        nbm = self.parse_bridge_mappings()
+        self.agent_state['configurations']['bridge_mappings'] = nbm
+        LOG.debug("After: %s", nbm)
         self._report_state()
 
     def port_update(self, context, **kwargs):
