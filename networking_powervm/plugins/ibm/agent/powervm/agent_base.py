@@ -305,6 +305,7 @@ class BasePVMNeutronAgent(object):
         try:
             device_count = 0
             self.agent_state.get('configurations')['devices'] = device_count
+            LOG.debug("Reporting agent state to neutron: %s", self.agent_state)
             self.state_rpc.report_state(self.context,
                                         self.agent_state)
             self.agent_state.pop('start_flag', None)
