@@ -25,10 +25,10 @@ from networking_powervm.plugins.ibm.agent.powervm import prov_req
 
 
 def mk_preq(action, mac, segment_id=None, phys_network=None,
-            lpar_uuid='lpar_uuid'):
+            lpar_uuid='lpar_uuid', vif_type=None):
     device = {'mac_address': mac, 'physical_network': phys_network,
               'segmentation_id': segment_id}
-    return prov_req.ProvisionRequest(action, device, lpar_uuid)
+    return prov_req.ProvisionRequest(action, device, lpar_uuid, vif_type)
 
 
 class AgentFx(fixtures.Fixture):

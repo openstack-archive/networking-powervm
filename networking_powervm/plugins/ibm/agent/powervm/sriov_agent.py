@@ -54,6 +54,8 @@ a_config.register_root_helper(cfg.CONF)
 
 ACONF = cfg.CONF.AGENT
 
+VIF_TYPE_PVM_SRIOV = 'pvm_sriov'
+
 
 class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
     """
@@ -77,6 +79,10 @@ class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
     @property
     def vif_wrapper_class(self):
         return pvm_card.VNIC
+
+    @property
+    def vif_type(self):
+        return VIF_TYPE_PVM_SRIOV
 
     def customize_agent_state(self):
         """Set SR-IOV-specific configurations in the agent_state."""

@@ -51,7 +51,7 @@ class ProvisionRequest(object):
     aspects into a single element.
     """
 
-    def __init__(self, action, device_detail, lpar_uuid):
+    def __init__(self, action, device_detail, lpar_uuid, vif_type=None):
         """Create a ProvisionRequest for a neutron device associated with a VM.
 
         Consumers should not call this directly, but should instead use one of
@@ -65,12 +65,15 @@ class ProvisionRequest(object):
         :param lpar_uuid: String UUID of the Logical Partition associated with
                           the device, in PowerVM format (see
                           pypowervm.utils.uuid.convert_uuid_to_pvm).
+        :param vif_type: Source of event. It could be pvm_sea or pvm_sriov or
+                         others
         """
         self.action = action
         self.mac_address = device_detail.get('mac_address')
         self.rpc_device = device_detail
         self.lpar_uuid = lpar_uuid
         self.created_at = time.time()
+        self.vif_type = vif_type
 
     def __eq__(self, other):
         if not isinstance(other, ProvisionRequest):
@@ -177,10 +180,14 @@ class ProvisionRequest(object):
         # .../LogicalPartition/<LPAR_UUID>/VirtualNICDedicated/<vnic_uuid>
         lpar_uuid = pvm_util.get_req_path_uuid(event.data, preserve_case=True,
                                                root=True)
+        vif_type = edetail['type']
+        if agent.vif_type != vif_type:
+            return None
 
         LOG.info(_LI("Creating event-based %(action)s ProvisionRequest for "
                      "VIF %(uri)s with MAC %(mac)s associated with LPAR "
-                     "%(lpar_uuid)s."),
+                     "%(lpar_uuid)s and source %(vif_type)s."),
                  {'action': edetail['action'], 'uri': event.data,
-                  'mac': edetail['mac'], 'lpar_uuid': lpar_uuid})
-        return cls(edetail['action'], device_detail, lpar_uuid)
+                  'mac': edetail['mac'], 'lpar_uuid': lpar_uuid,
+                  'vif_type': vif_type})
+        return cls(edetail['action'], device_detail, lpar_uuid, vif_type)

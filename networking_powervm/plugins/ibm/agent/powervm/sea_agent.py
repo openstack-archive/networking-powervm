@@ -64,6 +64,8 @@ a_config.register_root_helper(cfg.CONF)
 
 ACONF = cfg.CONF.AGENT
 
+VIF_TYPE_PVM_SEA = 'pvm_sea'
+
 
 class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
     """
@@ -88,6 +90,10 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
     @property
     def vif_wrapper_class(self):
         return pvm_net.CNA
+
+    @property
+    def vif_type(self):
+        return VIF_TYPE_PVM_SEA
 
     def parse_bridge_mappings(self):
         return utils.parse_sea_mappings(self.adapter, self.host_uuid,
