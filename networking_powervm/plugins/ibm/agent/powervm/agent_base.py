@@ -191,6 +191,10 @@ class BasePVMNeutronAgent(object):
         raise NotImplementedError()
 
     @abc.abstractproperty
+    def vif_type(self):
+        raise NotImplementedError()
+
+    @abc.abstractproperty
     def vif_wrapper_class(self):
         """The pypowervm wrapper class for the VIF-ish type the agent handles.
 

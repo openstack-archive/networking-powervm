@@ -85,11 +85,11 @@ class SEAAgentTest(base.BasePVMTestCase):
     def test_provision_devices(self, mock_base_prov, mock_ensure):
         """Validates that the provision is invoked with batched VLANs."""
         preq1 = base.mk_preq('plug', 'aa', segment_id=20,
-                             phys_network='default')
+                             phys_network='default', vif_type='pvm_sea')
         preq2 = base.mk_preq('plug', 'bb', segment_id=22,
-                             phys_network='default')
+                             phys_network='default', vif_type='pvm_sea')
         preq3 = base.mk_preq('unplug', 'cc', segment_id=24,
-                             phys_network='default')
+                             phys_network='default', vif_type='pvm_sea')
         # Invoke
         self.agent.provision_devices({preq1, preq2, preq3})
 

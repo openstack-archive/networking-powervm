@@ -101,12 +101,14 @@ class TestProvisionRequest(testtools.TestCase):
                 'device_detail_valid')
     @mock.patch('pypowervm.util.get_req_path_uuid')
     def test_for_event(self, mock_uuid, mock_ddv):
-        def mk_evt(action, mac, provider='NOVA_PVM_VIF',
+        def mk_evt(action, mac, vif_type, provider='NOVA_PVM_VIF',
                    etype='CUSTOM_CLIENT_EVENT'):
             return mock.Mock(
-                detail='{"action": "%s", "mac": "%s", "provider": "%s"}' % (
-                    action, mac, provider), etype=etype)
+                detail='{"action": "%s", "mac": "%s", "provider": "%s",'
+                       '"type": "%s"}' % (
+                           action, mac, provider, vif_type), etype=etype)
         agent = mock.Mock()
+        agent.vif_type = 'pvm_sea'
 
         # Wrong event type
         self.assertIsNone(prov_req.ProvisionRequest.for_event(
@@ -124,18 +126,23 @@ class TestProvisionRequest(testtools.TestCase):
 
         # Wrong provider
         self.assertIsNone(prov_req.ProvisionRequest.for_event(
-            agent, mk_evt('action', 'mac', provider='bogus')))
+            agent, mk_evt('action', 'mac', 'pvm_sea', provider='bogus')))
+        agent.get_device_details.assert_not_called()
+
+        # Wrong vif_type
+        self.assertIsNone(prov_req.ProvisionRequest.for_event(
+            agent, mk_evt('action', 'mac', 'pvm_sriov')))
         agent.get_device_details.assert_not_called()
 
         # Unrecognized action
         self.assertIsNone(prov_req.ProvisionRequest.for_event(
-            agent, mk_evt('action', 'mac')))
+            agent, mk_evt('action', 'mac', 'pvm_sea')))
         agent.get_device_details.assert_not_called()
 
         # Validation failure
         mock_ddv.return_value = False
         self.assertIsNone(prov_req.ProvisionRequest.for_event(
-            agent, mk_evt('plug', 'amac')))
+            agent, mk_evt('plug', 'amac', 'pvm_sea')))
         agent.get_device_details.assert_called_once_with('amac')
         mock_ddv.assert_called_once_with(agent.get_device_details.return_value,
                                          'amac')
@@ -146,7 +153,7 @@ class TestProvisionRequest(testtools.TestCase):
         agent.get_device_details.reset_mock()
         mock_ddv.reset_mock()
         mock_ddv.return_value = True
-        evt = mk_evt('unplug', 'amac')
+        evt = mk_evt('unplug', 'amac', 'pvm_sea')
         ret = prov_req.ProvisionRequest.for_event(agent, evt)
         agent.get_device_details.assert_called_once_with('amac')
         mock_ddv.assert_called_once_with(agent.get_device_details.return_value,
