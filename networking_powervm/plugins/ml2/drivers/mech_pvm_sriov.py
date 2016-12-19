@@ -67,6 +67,7 @@ class PvmSRIOVMechanismDriver(mech_pvm_base.PvmMechanismDriverBase):
                 context, segment, agent))
         vif_details['physical_ports'] = self.get_mappings(agent).get(
             segment['physical_network'], [])
+        vif_details['physical_network'] = segment['physical_network']
         profile = context.current.get(portbindings.PROFILE, {})
         # TODO(efried): binding:profile info is not in the 'profile' var!
         # Redundancy: from binding:profile or the ml2 conf.
