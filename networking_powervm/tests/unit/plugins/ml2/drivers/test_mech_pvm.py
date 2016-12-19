@@ -167,6 +167,7 @@ class TestPvmSriovMechDriver(BaseTestPvmMechDriver):
         # No profile in context, mismatched network in segment
         self.segment['physical_network'] = 'bogus_net'
         vif_dets = self.verify_vif_details()
+        self.assertEqual('bogus_net', vif_dets['physical_network'])
         # No ports
         self.assertEqual([], vif_dets['physical_ports'])
         # default_redundancy from agent config
@@ -178,6 +179,7 @@ class TestPvmSriovMechDriver(BaseTestPvmMechDriver):
         self.agent['configurations']['default_capacity'] = '0.04'
         vif_dets = self.verify_vif_details()
         self.assertEqual(0.04, vif_dets['capacity'])
+        self.assertEqual('bogus_net', vif_dets['physical_network'])
 
         # Now with proper values set in profile & segment
         self.segment['physical_network'] = 'the_other_network'
@@ -187,3 +189,4 @@ class TestPvmSriovMechDriver(BaseTestPvmMechDriver):
         self.assertEqual(['p3', 'p4'], vif_dets['physical_ports'])
         self.assertEqual(10, vif_dets['redundancy'])
         self.assertEqual(0.16, vif_dets['capacity'])
+        self.assertEqual('the_other_network', vif_dets['physical_network'])
