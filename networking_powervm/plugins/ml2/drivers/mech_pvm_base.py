@@ -17,10 +17,10 @@
 import copy
 
 from neutron.common import topics
-from neutron.extensions import portbindings
 from neutron.plugins.ml2 import driver_api as api
 from neutron.plugins.ml2.drivers import mech_agent
 from neutron.plugins.ml2 import rpc
+from neutron_lib.api.definitions import portbindings
 from oslo_log import log
 
 LOG = log.getLogger(__name__)

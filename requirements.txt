@@ -16,4 +16,4 @@ oslo.utils>=3.18.0 # Apache-2.0
 oslo.config!=3.18.0,>=3.14.0 # Apache-2.0
 pypowervm
 setuptools!=24.0.0,>=16.0 # PSF/ZPL
-neutron-lib>=1.0.0 # Apache-2.0
+neutron-lib>=1.1.0 # Apache-2.0
