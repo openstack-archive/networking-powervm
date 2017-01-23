@@ -64,13 +64,13 @@ required (but see Optional Configuration below).
 If using ``pvm_sriov``, you must inform the compute driver which physical
 networks are allowed to be used by VMs.  Each SR-IOV physical port must be
 labeled with its corresponding neutron network name as described in Usage above;
-and each authorized network must be listed in the ``pci_passthrough_whitelist``
-in the ``[DEFAULT]`` section of the nova configuration file (e.g.
+and each authorized network must be listed in the ``passthrough_whitelist`` in
+the ``[pci]`` section of the nova configuration file (e.g.
 ``/etc/nova/nova.conf``).  For example, to authorize networks named ``default``
 and ``prod_net``, include the following in the nova configuration file::
 
-  [DEFAULT]
-  pci_passthrough_whitelist = [{"physical_network": "default"}, {"physical_network": "prod_net"}]
+  [pci]
+  passthrough_whitelist = [{"physical_network": "default"}, {"physical_network": "prod_net"}]
 
 
 Optional Configuration
