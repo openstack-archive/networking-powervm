@@ -142,6 +142,7 @@ class VIFEventHandler(pvm_adpt.WrapperEventHandler):
                        handle.
         """
         prov_req_set = set()
+        do_heal = False
         for event in events:
             if event.etype in FULL_REFETCH_EVENTS:
                 # On initial startup, we'll get a NEW_CLIENT event, *but*
@@ -154,7 +155,16 @@ class VIFEventHandler(pvm_adpt.WrapperEventHandler):
             elif event.etype in SINGLE_OBJ_EVENTS:
                 self._process_event(event, prov_req_set)
 
+            if self.agent.is_hao_event(event):
+                LOG.info(_LI("Received heal-and-optimize event: %s"),
+                         str(event))
+                do_heal = True
+
             self.just_started = False
+
+        # Do heal_and_optimize if requested.
+        if do_heal:
+            self.agent.heal_and_optimize()
 
         # Process any port requests accumulated above.
         self.agent.provision_devices(prov_req_set)
@@ -219,6 +229,15 @@ class BasePVMNeutronAgent(object):
         properly.  If possible, it should also optimize the connections.
         """
         raise NotImplementedError()
+
+    def is_hao_event(self, evt):
+        """Determines if an Event warrants a heal_and_optimize.
+
+        :param evt: A pypowervm.wrappers.event.Event wrapper to inspect.
+        :return: True if heal_and_optimize should be invoked as a result of
+                 this event; False otherwise.
+        """
+        return False
 
     def customize_agent_state(self):
         """Perform subclass-specific adjustments to self.agent_state."""

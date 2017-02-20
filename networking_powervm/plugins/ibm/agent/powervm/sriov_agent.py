@@ -142,6 +142,15 @@ class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
         # ...and mark them 'up' in neutron.
         self.provision_devices(prov_reqs)
 
+    def is_hao_event(self, evt):
+        """Determines if an Event warrants a heal_and_optimize.
+
+        :param evt: A pypowervm.wrappers.event.Event wrapper to inspect.
+        :return: True if heal_and_optimize should be invoked as a result of
+                 this event; False otherwise.
+        """
+        return evt.detail and 'SRIOVPhysicalPort.ConfigChange' in evt.detail
+
 
 def main():
     # Read in the command line args

@@ -295,18 +295,20 @@ class TestVIFEventHandler(base.BasePVMTestCase):
         mock_ref_all.side_effect = _refetch_all
 
         # Refetch events
-        r_evts = [mock.Mock(etype=val) for val in
+        r_evts = [mock.Mock(etype=val, detail='One,Two') for val in
                   agent_base.FULL_REFETCH_EVENTS]
         # Single object events
         s_evts = [mock.Mock(etype=val) for val in agent_base.SINGLE_OBJ_EVENTS]
         # Ignored events
-        i_evts = [mock.Mock(etype=val) for val in ('foo', 'bar')]
+        i_evts = [mock.Mock(etype=val, detail='Three') for val in
+                  ('foo', 'bar')]
 
         # 1) No events => no action, just_started stays True
         self.assertTrue(self.handler.just_started)
         self.handler.process([])
         mock_ref_all.assert_not_called()
         mock_proc_evt.assert_not_called()
+        self.mock_agent.is_hao_event.assert_not_called()
         self.mock_agent.provision_devices.assert_called_once_with(set())
         self.assertTrue(self.handler.just_started)
 
@@ -315,9 +317,15 @@ class TestVIFEventHandler(base.BasePVMTestCase):
         # 2) Ignorable followed by non-ignorable:
         #    a) Processors are called;
         #    b) Non-ignorables are provisioned.
-        self.handler.process([i_evts[0], r_evts[0], s_evts[0]])
+        #    c) No heal-and-optimize events.
+        self.mock_agent.is_hao_event.return_value = False
+        evts = [i_evts[0], r_evts[0], s_evts[0]]
+        self.handler.process(evts)
         mock_ref_all.assert_called_once_with(mock.ANY)
         mock_proc_evt.assert_called_once_with(s_evts[0], mock.ANY)
+        self.mock_agent.is_hao_event.assert_has_calls(
+            [mock.call(evt) for evt in evts])
+        self.mock_agent.heal_and_optimize.assert_not_called()
         self.mock_agent.provision_devices.assert_called_once_with(
             {'refetch', 'event INVALID_URI'})
         self.assertFalse(self.handler.just_started)
@@ -327,11 +335,21 @@ class TestVIFEventHandler(base.BasePVMTestCase):
         self.mock_agent.provision_devices.reset_mock()
 
         # 3) a) Cover all events;
-        #    b) Non-ignorables are provisioned
-        self.handler.process(s_evts + i_evts + r_evts)
+        #    b) Non-ignorables are provisioned.
+        #    c) Some heal-and-optimize events.
+        evts = s_evts + i_evts + r_evts
+        # Make is_hao_event return True periodically
+        self.mock_agent.is_hao_event.side_effect = map(
+            lambda x: False if x % 3 else True, range(len(evts)))
+        self.handler.process(evts)
         mock_ref_all.assert_has_calls([mock.call(mock.ANY)] * len(r_evts))
         mock_proc_evt.assert_has_calls([mock.call(evt, mock.ANY)
                                         for evt in s_evts])
+        # is_hao_event was called for every event
+        self.mock_agent.is_hao_event.assert_has_calls(
+            [mock.call(evt) for evt in evts])
+        # heal_and_optimize was only called once - the loop accumulates
+        self.mock_agent.heal_and_optimize.assert_called_once_with()
         self.mock_agent.provision_devices.assert_called_once_with(
             {'refetch'} | {'event %s' % val for val in
                            agent_base.SINGLE_OBJ_EVENTS})
