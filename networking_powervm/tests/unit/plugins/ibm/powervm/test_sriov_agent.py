@@ -98,3 +98,17 @@ class SRIOVAgentTest(base.BasePVMTestCase):
         mock_preq.assert_called_once_with(self.agt, mock_vifs.return_value,
                                           'plug')
         mock_prv.assert_called_once_with(mock_preq.return_value)
+
+    def test_is_hao_event(self):
+        self.assertFalse(self.agt.is_hao_event(mock.Mock(detail=None)))
+        self.assertFalse(self.agt.is_hao_event(mock.Mock(detail='')))
+        self.assertFalse(self.agt.is_hao_event(mock.Mock(detail='Foo')))
+        self.assertFalse(self.agt.is_hao_event(mock.Mock(detail='Foo,Bar')))
+        self.assertTrue(self.agt.is_hao_event(mock.Mock(
+            detail='SRIOVPhysicalPort.ConfigChange')))
+        self.assertTrue(self.agt.is_hao_event(mock.Mock(
+            detail='Foo,SRIOVPhysicalPort.ConfigChange')))
+        self.assertTrue(self.agt.is_hao_event(mock.Mock(
+            detail='SRIOVPhysicalPort.ConfigChange,Bar')))
+        self.assertTrue(self.agt.is_hao_event(mock.Mock(
+            detail='Foo,SRIOVPhysicalPort.ConfigChange,Bar')))
