@@ -47,7 +47,7 @@ class AgentFx(fixtures.Fixture):
         self.plg_rpt_st_api = self.useFixture(fixtures.MockPatch(
             'neutron.agent.rpc.PluginReportStateAPI')).mock
         self.gacwos = self.useFixture(fixtures.MockPatch(
-            'neutron.context.get_admin_context_without_session')).mock
+            'neutron_lib.context.get_admin_context_without_session')).mock
         self.crt_cons = self.useFixture(fixtures.MockPatch(
             'neutron.agent.rpc.create_consumers')).mock
         self.filc = self.useFixture(fixtures.MockPatch(
