@@ -22,8 +22,8 @@ eventlet.monkey_patch()
 from oslo_config import cfg
 from oslo_log import log as logging
 
-from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
+from neutron.conf.agent import common as a_config
 from pypowervm.tasks import network_bridger as net_br
 from pypowervm.wrappers import logical_partition as pvm_lpar
 from pypowervm.wrappers import network as pvm_net

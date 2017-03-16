@@ -17,8 +17,8 @@
 import eventlet
 import sys
 
-from neutron.agent.common import config as a_config
 from neutron.common import config as n_config
+from neutron.conf.agent import common as a_config
 from oslo_config import cfg
 from oslo_log import log as logging
 

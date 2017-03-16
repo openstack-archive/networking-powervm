@@ -22,9 +22,9 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service import loopingcall
 
-from neutron.agent.common import config as a_config
 from neutron.agent import rpc as agent_rpc
 from neutron.common import topics
+from neutron.conf.agent import common as a_config
 from neutron_lib import constants as q_const
 from neutron_lib import context as ctx
 from pypowervm import adapter as pvm_adpt
