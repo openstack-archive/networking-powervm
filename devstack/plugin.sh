@@ -44,11 +44,6 @@ function configure_networking_powervm {
 
 # install_networking_powervm() - Install networking_powervm and necessary dependencies
 function install_networking_powervm {
-    if [[ "$INSTALL_PYPOWERVM" == "True" ]]; then
-        echo_summary "Installing pypowervm"
-        install_pypowervm
-    fi
-
     # Install the networking-powervm package
     setup_develop $NETWORKING_POWERVM_DIR
 }
@@ -152,7 +147,6 @@ if [[ "$1" == "clean" ]]; then
         # clean.sh first calls unstack.sh
         echo_summary "Cleaning up networking-powervm and associated data"
         cleanup_networking_powervm
-        cleanup_pypowervm
     fi
 fi
 
