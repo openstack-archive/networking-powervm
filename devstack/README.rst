@@ -10,7 +10,7 @@ Installing with Devstack
 
     [[local|localrc]]
     ...
-    enable_plugin networking-powervm http://git.openstack.org/openstack/networking-powervm
+    enable_plugin networking-powervm git.openstack.org/openstack/networking-powervm
 
    Example files are available in the nova-powervm project to provide
    reference on using this driver with the corresponding nova-powervm
