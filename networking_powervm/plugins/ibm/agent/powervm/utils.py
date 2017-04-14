@@ -35,6 +35,7 @@ from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
 
 LOG = logging.getLogger(__name__)
+NON_SEA_BRIDGES = ['MGMTSWITCH', 'NovaLinkVEABridge']
 
 
 def parse_sea_mappings(adapter, host_uuid, mapping):
@@ -219,19 +220,27 @@ def list_vifs(adapter, vif_class, include_vios_and_mgmt=False):
     LOG.info(_LI("Gathering Virtual Machine wrappers for a list_vifs call. "
                  "Include VIOS and management: %s"), include_vios_and_mgmt)
 
+    # Find the MGMT vswitch and the Novalink I/O vswitch (if configured)
+    vs_exclu = []
+    vswitch_list = pvm_net.VSwitch.get(adapter,
+                                       parent=pvm_ms.System.get(adapter)[0])
+    for vswitch in vswitch_list:
+        if vswitch.name in NON_SEA_BRIDGES:
+            vs_exclu.append(vswitch.switch_id)
+
     # Loop through the VMs
     total_vifs = {}
     for vm_wrap in pvm_par.get_partitions(adapter, lpars=True,
                                           vioses=include_vios_and_mgmt,
                                           mgmt=include_vios_and_mgmt):
-        total_vifs[vm_wrap] = _find_vifs(adapter, vif_class, vm_wrap)
+        total_vifs[vm_wrap] = _find_vifs(adapter, vif_class, vm_wrap, vs_exclu)
 
     return total_vifs
 
 
 @pvm_retry.retry(tries=200, delay_func=lambda *a, **k: time.sleep(5),
                  test_func=lambda *a, **k: True)
-def _find_vifs(adapter, vif_class, vm_wrap):
+def _find_vifs(adapter, vif_class, vm_wrap, vs_exclu):
     """Return the list of virtual network devices (VIFs) for a partition.
 
     When vif_class is CNA, this method returns the list of client network
@@ -253,6 +262,9 @@ def _find_vifs(adapter, vif_class, vm_wrap):
                       retrieved (CNA, VNIC, etc.).
     :param vm_wrap: The partition wrapper (LPAR or VIOS type) whose VIFs are to
                     be retrieved.
+    :param vs_exclu: A list of vswitch ids to exclude.  If a VIF is connected
+                     to a vswitch on this list, it will not be returned.  This
+                     list contains integer vswitch IDs such as 0, 1, 2.
     """
     try:
         vif_list = vif_class.get(
@@ -262,8 +274,10 @@ def _find_vifs(adapter, vif_class, vm_wrap):
         # adapters on LPARs, but NOT on VIOS type partitions.  Only CNA has the
         # is_tagged_vlan_supported property; the other types can't be trunk
         # adapters (TODO(IBM) yet?), so always return them.
-        return [vif for vif in vif_list if isinstance(vm_wrap, pvm_lpar.LPAR)
-                or not getattr(vif, 'is_tagged_vlan_supported', False)]
+        return [vif for vif in vif_list if
+                ((isinstance(vm_wrap, pvm_lpar.LPAR)
+                  or not getattr(vif, 'is_tagged_vlan_supported', False))
+                 and not getattr(vif, 'vswitch_id') in vs_exclu)]
     except pvm_exc.HttpError as e:
         # If it is a 404 (not found) then just skip.
         if e.response is not None and e.response.status == 404:
