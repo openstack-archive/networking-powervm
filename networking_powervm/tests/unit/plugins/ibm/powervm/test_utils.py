@@ -102,10 +102,17 @@ class UtilsTest(base.BasePVMTestCase):
     @mock.patch('pypowervm.tasks.partition.get_partitions')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 '_find_vifs')
-    def test_list_vifs(self, mock_find_vifs, mock_get_partitions):
+    @mock.patch('pypowervm.wrappers.managed_system.System.get',
+                mock.MagicMock(return_value=['']))
+    @mock.patch('pypowervm.wrappers.network.VSwitch.get')
+    def test_list_vifs(self, mock_get_vswitches, mock_find_vifs,
+                       mock_get_partitions):
         pars = ['par1', 'par2', 'par3']
         mock_get_partitions.return_value = pars
         mock_find_vifs.side_effect = ['vif1', 'vif2', 'vif3']
+        vswitch = mock.MagicMock()
+        vswitch.name = 'test'
+        mock_get_vswitches.return_value = [vswitch]
 
         # Default (no VIOS/mgmt)
         self.assertEqual({'par1': 'vif1', 'par2': 'vif2', 'par3': 'vif3'},
@@ -113,7 +120,7 @@ class UtilsTest(base.BasePVMTestCase):
         mock_get_partitions.assert_called_once_with(
             'adap', lpars=True, vioses=False, mgmt=False)
         mock_find_vifs.assert_has_calls(
-            [mock.call('adap', 'vif_class', vm_wrap) for vm_wrap in pars])
+            [mock.call('adap', 'vif_class', vm_wrap, []) for vm_wrap in pars])
 
         mock_get_partitions.reset_mock()
         mock_find_vifs.reset_mock()
@@ -126,7 +133,7 @@ class UtilsTest(base.BasePVMTestCase):
         mock_get_partitions.assert_called_once_with(
             'adap', lpars=True, vioses=True, mgmt=True)
         mock_find_vifs.assert_has_calls(
-            [mock.call('adap', 'vif_class', vm_wrap) for vm_wrap in pars])
+            [mock.call('adap', 'vif_class', vm_wrap, []) for vm_wrap in pars])
 
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 'list_bridges')
@@ -194,17 +201,19 @@ class UtilsTest(base.BasePVMTestCase):
                 '_remove_log_helper')
     def test_find_cnas(self, mock_rmlog):
         mock_vif_class = mock.Mock()
-        vea1 = mock.Mock(uuid='1', is_tagged_vlan_supported=True)
-        vea2 = mock.Mock(uuid='2', is_tagged_vlan_supported=False)
-        vea3 = mock.Mock(uuid='3', is_tagged_vlan_supported=True)
-        mock_vif_class.get.return_value = [vea1, vea2, vea3]
+        vea1 = mock.Mock(uuid='1', is_tagged_vlan_supported=True, vswitch_id=2)
+        vea2 = mock.Mock(uuid='2', is_tagged_vlan_supported=False,
+                         vswitch_id=3)
+        vea3 = mock.Mock(uuid='3', is_tagged_vlan_supported=True, vswitch_id=4)
+        vea4 = mock.Mock(uuid='3', is_tagged_vlan_supported=True, vswitch_id=0)
+        mock_vif_class.get.return_value = [vea1, vea2, vea3, vea4]
 
         lpar = mock.Mock(spec=pvm_lpar.LPAR)
         vios = mock.Mock(spec=pvm_vios.VIOS)
 
         # The LPAR type should include the trunk adapters
         self.assertEqual([vea1, vea2, vea3],
-                         utils._find_vifs('adap', mock_vif_class, lpar))
+                         utils._find_vifs('adap', mock_vif_class, lpar, [0]))
         mock_vif_class.get.assert_called_once_with(
             'adap', parent=lpar, helpers=mock_rmlog.return_value)
         mock_rmlog.assert_called_once_with('adap')
@@ -214,7 +223,7 @@ class UtilsTest(base.BasePVMTestCase):
 
         # The vios type should ignore the trunk adapters
         self.assertEqual([vea2],
-                         utils._find_vifs('adap', mock_vif_class, vios))
+                         utils._find_vifs('adap', mock_vif_class, vios, []))
         mock_vif_class.get.assert_called_once_with(
             'adap', parent=vios, helpers=mock_rmlog.return_value)
         mock_rmlog.assert_called_once_with('adap')
