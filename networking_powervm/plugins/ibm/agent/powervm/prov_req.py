@@ -24,7 +24,6 @@ from oslo_serialization import jsonutils
 from pypowervm import util as pvm_util
 from pypowervm.wrappers import event as pvm_evt
 
-from networking_powervm._i18n import _LI
 from networking_powervm.plugins.ibm.agent.powervm import utils
 
 a_config.register_agent_state_opts_helper(cfg.CONF)
@@ -127,10 +126,10 @@ class ProvisionRequest(object):
                 detail = device_details[mac]
                 if not utils.device_detail_valid(detail, mac):
                     continue
-                LOG.info(_LI(
+                LOG.info(
                     "Creating wrapper-based %(action)s ProvisionRequest for "
                     "%(vif_type)s VIF with MAC %(mac)s associated with LPAR "
-                    "%(lpar_name)s (%(lpar_uuid)s)."),
+                    "%(lpar_name)s (%(lpar_uuid)s).",
                     {'action': action, 'vif_type': vif_w.schema_type,
                      'mac': vif_w.mac, 'lpar_name': lpar.name,
                      'lpar_uuid': lpar.uuid})
@@ -184,9 +183,9 @@ class ProvisionRequest(object):
         if agent.vif_type != vif_type:
             return None
 
-        LOG.info(_LI("Creating event-based %(action)s ProvisionRequest for "
-                     "VIF %(uri)s with MAC %(mac)s associated with LPAR "
-                     "%(lpar_uuid)s and source %(vif_type)s."),
+        LOG.info("Creating event-based %(action)s ProvisionRequest for VIF "
+                 "%(uri)s with MAC %(mac)s associated with LPAR %(lpar_uuid)s "
+                 "and source %(vif_type)s.",
                  {'action': edetail['action'], 'uri': event.data,
                   'mac': edetail['mac'], 'lpar_uuid': lpar_uuid,
                   'vif_type': vif_type})

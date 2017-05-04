@@ -16,24 +16,22 @@
 
 from neutron_lib import exceptions
 
-from networking_powervm._i18n import _LE
-
 
 class MultipleHostsFound(exceptions.NeutronException):
-    message = _LE("Expected exactly one host; found %(host_count)d.")
+    message = "Expected exactly one host; found %(host_count)d."
 
 
 class NoNetworkBridges(exceptions.NeutronException):
-    message = _LE('There are no network bridges (Shared Ethernet Adapters) on '
-                  'the system.  Can not start the Neutron agent.')
+    message = ('There are no network bridges (Shared Ethernet Adapters) on '
+               'the system.  Can not start the Neutron agent.')
 
 
 class MultiBridgeNoMapping(exceptions.NeutronException):
-    message = _LE('The system has more than one network bridge, but the '
-                  'bridge_mappings have not been specified.  Please configure '
-                  'the bridge_mappings before proceeding.')
+    message = ('The system has more than one network bridge, but the '
+               'bridge_mappings have not been specified.  Please configure '
+               'the bridge_mappings before proceeding.')
 
 
 class DeviceNotFound(exceptions.NeutronException):
-    message = _LE('Device %(dev)s on Virtual I/O Server %(vios)s was not '
-                  'found.  Unable to set up physical network %(phys_net)s.')
+    message = ('Device %(dev)s on Virtual I/O Server %(vios)s was not found. '
+               'Unable to set up physical network %(phys_net)s.')

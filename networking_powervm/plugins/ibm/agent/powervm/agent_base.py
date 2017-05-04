@@ -34,9 +34,6 @@ from pypowervm.wrappers import event as pvm_evt
 from pypowervm.wrappers import managed_system as pvm_ms
 
 from networking_powervm._i18n import _
-from networking_powervm._i18n import _LE
-from networking_powervm._i18n import _LI
-from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import prov_req as preq
 from networking_powervm.plugins.ibm.agent.powervm import utils
 
@@ -156,8 +153,7 @@ class VIFEventHandler(pvm_adpt.WrapperEventHandler):
                 self._process_event(event, prov_req_set)
 
             if self.agent.is_hao_event(event):
-                LOG.info(_LI("Received heal-and-optimize event: %s"),
-                         str(event))
+                LOG.info("Received heal-and-optimize event: %s", str(event))
                 do_heal = True
 
             self.just_started = False
@@ -333,15 +329,14 @@ class BasePVMNeutronAgent(object):
                                         self.agent_state)
             self.agent_state.pop('start_flag', None)
         except Exception:
-            LOG.exception(_LE("Failed reporting state!"))
+            LOG.exception("Failed reporting state!")
 
     def update_device_up(self, device):
         """Calls back to neutron that a device is alive.
 
         :param device: The device detail from get_device[s]_details[_list].
         """
-        LOG.info(_LI("Sending device up to Neutron for %(dev)s"),
-                 {'dev': device['device']})
+        LOG.info("Sending device up to Neutron for %s", device['device'])
         self.plugin_rpc.update_device_up(self.context, device['device'],
                                          self.agent_id, cfg.CONF.host)
 
@@ -350,8 +345,7 @@ class BasePVMNeutronAgent(object):
 
         :param device: The device detail from get_device[s]_details[_list].
         """
-        LOG.warning(_LW("Sending device DOWN to Neutron for %(dev)s"),
-                    {'dev': device['device']})
+        LOG.warning("Sending device DOWN to Neutron for %s", device['device'])
         self.plugin_rpc.update_device_down(self.context, device['device'],
                                            self.agent_id, cfg.CONF.host)
 
@@ -399,11 +393,12 @@ class BasePVMNeutronAgent(object):
             elif p_req.action == preq.UNPLUG:
                 self.update_device_down(p_req.rpc_device)
             else:
-                LOG.warning(_LW("Ignoring provision request with unknown "
-                                "action: %s"), str(p_req))
+                LOG.warning("Ignoring provision request with unknown action: "
+                            "%s", str(p_req))
 
     def rpc_loop(self):
-        """
+        """Periodic check for port additions/removals.
+
         Runs a check periodically to determine if new ports were added or
         removed.  Will call down to appropriate methods to determine correct
         course of action.
@@ -415,9 +410,8 @@ class BasePVMNeutronAgent(object):
                 self.heal_and_optimize()
                 time.sleep(ACONF.heal_and_optimize_interval)
 
-            except Exception as e:
-                LOG.exception(e)
-                LOG.warning(_LW("Error has been encountered and logged.  The "
-                                "agent will retry again."))
+            except Exception:
+                LOG.exception("Error has been encountered and logged.  The "
+                              "agent will retry.")
                 # sleep for a while and re-loop
                 time.sleep(ACONF.exception_interval)

@@ -32,7 +32,8 @@ class BaseTestPvmMechDriver(base.BasePVMTestCase):
         self.addCleanup(rpc_p.stop)
 
         self.context = mock.Mock(current={})
-        self.segment = {api.ID: 'id', api.SEGMENTATION_ID: 'seg_id'}
+        self.segment = {api.ID: 'id', api.NETWORK_ID: 'network_id',
+                        api.SEGMENTATION_ID: 'seg_id'}
         self.agent = {'host': 'agent_host',
                       'configurations': {
                           'bridge_mappings': {

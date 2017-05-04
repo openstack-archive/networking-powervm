@@ -23,7 +23,6 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from networking_powervm._i18n import _
-from networking_powervm._i18n import _LI
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
 from networking_powervm.plugins.ibm.agent.powervm import constants as p_const
 from networking_powervm.plugins.ibm.agent.powervm import prov_req as preq
@@ -58,10 +57,9 @@ VIF_TYPE_PVM_SRIOV = 'pvm_sriov'
 
 
 class SRIOVNeutronAgent(agent_base.BasePVMNeutronAgent):
-    """
-    Provides VLAN networks for the PowerVM platform that run through
-    shared-mode SR-IOV adapters within the Virtual I/O Servers in the form of
-    vNIC.  Designed to be compatible with the ML2 Neutron Plugin.
+    """Provides VLANs for vNICs (shared-mode SR-IOV VFs via VIOS).
+
+    Designed to be compatible with the ML2 Neutron Plugin.
     """
     @property
     def agent_id(self):
@@ -159,7 +157,7 @@ def main():
 
     # Build then run the agent
     agent = SRIOVNeutronAgent()
-    LOG.info(_LI("PowerVM SR-IOV Agent initialized and running."))
+    LOG.info("PowerVM SR-IOV Agent initialized and running.")
     agent.rpc_loop()
 
 

@@ -28,8 +28,6 @@ from pypowervm.tasks import network_bridger as net_br
 from pypowervm.wrappers import logical_partition as pvm_lpar
 from pypowervm.wrappers import network as pvm_net
 
-from networking_powervm._i18n import _LI
-from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
 from networking_powervm.plugins.ibm.agent.powervm import constants as p_const
 from networking_powervm.plugins.ibm.agent.powervm import prov_req as preq
@@ -68,10 +66,9 @@ VIF_TYPE_PVM_SEA = 'pvm_sea'
 
 
 class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
-    """
-    Provides VLAN networks for the PowerVM platform that run accross the
-    Shared Ethernet within the Virtual I/O Servers.  Designed to be compatible
-    with the ML2 Neutron Plugin.
+    """Provides VLAN networks for Shared Ethernet Adapters on VIOSes.
+
+    Designed to be compatible with the ML2 Neutron Plugin.
     """
 
     @property
@@ -113,7 +110,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
            managed or not.
          - Are not part of the primary load group on the Network Bridge.
         """
-        LOG.info(_LI("Running the heal and optimize flow."))
+        LOG.info("Running the heal and optimize flow.")
 
         # Get a map of all the partitions and their CNAs.
         all_lpar_cnas = utils.list_vifs(self.adapter, self.vif_wrapper_class,
@@ -203,9 +200,8 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
             vlans_to_del = existing_vlans - req_vlans
             for vlan_to_del in vlans_to_del:
                 if cur_delete < 3:
-                    LOG.warning(_LW("Cleaning up VLAN %(vlan)s from the "
-                                    "system. It is no longer in use."),
-                                {'vlan': vlan_to_del})
+                    LOG.warning("Cleaning up VLAN %s from the system. It is "
+                                "no longer in use.", vlan_to_del)
                     net_br.remove_vlan_from_nb(self.adapter, self.host_uuid,
                                                nb.uuid, vlan_to_del)
                 else:
@@ -216,11 +212,11 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
                     # but just in case, we get a rush of them, this ensures
                     # we don't block provision requests that are actually going
                     # on in the system.
-                    LOG.warning(_LW(
-                        "System identified that VLAN %(vlan)s is unused. "
-                        "However three VLAN clean ups have already occurred "
-                        "in this pass. Will clean up in next optimization "
-                        "pass."), {'vlan': vlan_to_del})
+                    LOG.warning(
+                        "System identified that VLAN %s is unused. However, "
+                        "three VLAN clean ups have already occurred in this "
+                        "pass. Will clean up in next optimization pass.",
+                        vlan_to_del)
                 cur_delete += 1
 
     def provision_devices(self, requests):
@@ -265,6 +261,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
 
     def _get_nb_and_vlan(self, dev, emit_warnings=False):
         """Parses bridge mappings to find a match for the device passed in.
+
         :param dev: Neutron device to find a match for
         :param emit_warnings: (Optional) Defaults to False.  If true, will emit
                               a warning if the configuration is off.
@@ -273,10 +270,10 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
         """
         nb_uuid = self.br_map.get(dev.get('physical_network'))
         if not nb_uuid and emit_warnings:
-            LOG.warning(_LW("Unable to determine the Network Bridge (Shared "
-                            "Ethernet Adapter) for physical network %s.  Will "
-                            "be unable to determine appropriate provisioning "
-                            "action."), dev.get('physical_network'))
+            LOG.warning("Unable to determine the Network Bridge (Shared "
+                        "Ethernet Adapter) for physical network %s.  Will be "
+                        "unable to determine appropriate provisioning action.",
+                        dev.get('physical_network'))
         return nb_uuid, dev.get('segmentation_id')
 
 
@@ -287,7 +284,7 @@ def main():
 
     # Build then run the agent
     agent = SharedEthernetNeutronAgent()
-    LOG.info(_LI("Shared Ethernet Agent initialized and running"))
+    LOG.info("Shared Ethernet Agent initialized and running.")
     agent.rpc_loop()
 
 

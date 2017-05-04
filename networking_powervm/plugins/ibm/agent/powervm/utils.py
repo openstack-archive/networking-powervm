@@ -30,8 +30,6 @@ from pypowervm.wrappers import managed_system as pvm_ms
 from pypowervm.wrappers import network as pvm_net
 from pypowervm.wrappers import virtual_io_server as pvm_vios
 
-from networking_powervm._i18n import _LI
-from networking_powervm._i18n import _LW
 from networking_powervm.plugins.ibm.agent.powervm import exceptions as np_exc
 
 LOG = logging.getLogger(__name__)
@@ -130,33 +128,29 @@ def _parse_empty_bridge_mapping(bridges):
     if len(bridges) > 1:
         raise np_exc.MultiBridgeNoMapping()
 
-    LOG.warning(_LW('The bridge_mappings for the agent was not specified.  '
-                    'There was exactly one Network Bridge on the system.  '
-                    'Agent is assuming the default network is backed by the '
-                    'single Network Bridge.'))
+    LOG.warning('The bridge_mappings for the agent was not specified. There '
+                'was exactly one Network Bridge on the system. Agent is '
+                'assuming the default network is backed by the single Network '
+                'Bridge.')
     return {'default': bridges[0].uuid}
 
 
 def norm_mac(mac):
-    """
-    Will return a MAC Address that normalizes from the pypowervm format
-    to the neutron format.
+    """Normalize a MAC Address from the pypowervm format to the neutron format.
 
-    That means that the format will be converted to lower case and will
-    have colons added.
+    That means that the format will be converted to lower case and will have
+    colons added.
 
-    :param mac: A pypowervm mac address.  Ex. 1234567890AB
+    :param mac: A pypowervm mac address.  E.g. 1234567890AB
     :returns: A mac that matches the standard neutron format.
-              Ex. 12:34:56:78:90:ab
+              E.g. 12:34:56:78:90:ab
     """
     mac = mac.lower().replace(':', '')
     return ':'.join(mac[i:i + 2] for i in range(0, len(mac), 2))
 
 
 def find_nb_for_cna(nb_wraps, client_adpt, vswitch_map):
-    """
-    Determines the NetworkBridge (if any) that is supporting a client
-    adapter.
+    """Determines the NetworkBridge (if any) supporting a client adapter.
 
     :param nb_wraps: The network bridge wrappers on the system.
     :param client_adpt: The client adapter wrapper.
@@ -217,8 +211,8 @@ def list_vifs(adapter, vif_class, include_vios_and_mgmt=False):
              given lpar_w.
     """
     # Get the VMs to query for.
-    LOG.info(_LI("Gathering Virtual Machine wrappers for a list_vifs call. "
-                 "Include VIOS and management: %s"), include_vios_and_mgmt)
+    LOG.info("Gathering Virtual Machine wrappers for a list_vifs call. "
+             "Include VIOS and management: %s", include_vios_and_mgmt)
 
     # Find the MGMT vswitch and the Novalink I/O vswitch (if configured)
     vs_exclu = []
@@ -275,9 +269,9 @@ def _find_vifs(adapter, vif_class, vm_wrap, vs_exclu):
         # is_tagged_vlan_supported property; the other types can't be trunk
         # adapters (TODO(IBM) yet?), so always return them.
         return [vif for vif in vif_list if
-                ((isinstance(vm_wrap, pvm_lpar.LPAR)
-                  or not getattr(vif, 'is_tagged_vlan_supported', False))
-                 and not getattr(vif, 'vswitch_id') in vs_exclu)]
+                ((isinstance(vm_wrap, pvm_lpar.LPAR) or
+                  not getattr(vif, 'is_tagged_vlan_supported', False)) and
+                 not getattr(vif, 'vswitch_id') in vs_exclu)]
     except pvm_exc.HttpError as e:
         # If it is a 404 (not found) then just skip.
         if e.response is not None and e.response.status == 404:
@@ -300,9 +294,7 @@ def _remove_log_helper(adapter):
 
 @pvm_retry.retry()
 def list_bridges(adapter, host_uuid):
-    """
-    Queries for the NetworkBridges on the system.  Will return the
-    wrapper objects that describe Network Bridges.
+    """Lists NetBridge wrappers on the system.
 
     :param adapter: The pypowervm adapter.
     :param host_uuid: The UUID for the host system.
@@ -311,7 +303,7 @@ def list_bridges(adapter, host_uuid):
                                         parent_uuid=host_uuid)
 
     if len(net_bridges) == 0:
-        LOG.warning(_LW('No NetworkBridges detected on the host.'))
+        LOG.warning('No NetworkBridges detected on the host.')
 
     return net_bridges
 
@@ -343,9 +335,9 @@ def device_detail_valid(device_detail, mac, port_id=None):
         # ignore it.
         dev_pid = device_detail.get('port_id')
         if dev_pid is None or port_id != dev_pid:
-            LOG.warning(_LW(
+            LOG.warning(
                 "Ignoring port because device_details port_id doesn't match "
-                "the port.\nPort: %(port)s\nDevice detail: %(device_detail)s"),
+                "the port.\nPort: %(port)s\nDevice detail: %(device_detail)s",
                 {'port': port_id, 'device_detail': device_detail})
             return False
 

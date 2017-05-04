@@ -83,11 +83,10 @@ class BasePVMTestCase(base.BaseTestCase):
         if os.path.exists(to):
             os.remove(to)
 
-    def _get_policy_paths(self):
-        """
-        Returns the source policy path from neutron and a target path
-        to store the file in temporarily for the tests.
-        """
+    @staticmethod
+    def _get_policy_paths():
+        # Returns the source policy path from neutron and a target path to
+        # store the file in temporarily for the tests.
         # Start with the source path.
         tests = os.path.split(base.__file__)[0]
         neutron_src = os.path.split(tests)[0]
