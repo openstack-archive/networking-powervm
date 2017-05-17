@@ -99,6 +99,21 @@ class UtilsTest(base.BasePVMTestCase):
         resp = utils.find_nb_for_cna(nb_wraps, mock_client_adpt, vswitch_map)
         self.assertIsNone(resp)
 
+    @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
+                '_remove_log_helper')
+    def test_find_vifs(self, mock_rmlog):
+        mock_vif_class = mock.Mock()
+        vea1 = mock.Mock(uuid='1', is_tagged_vlan_supported=True, vswitch_id=2)
+        vea2 = mock.Mock(uuid='2', is_tagged_vlan_supported=False,
+                         spec=['uuid', 'is_tagged_vlan_supported'])
+        mock_vif_class.get.return_value = [vea1, vea2]
+        lpar = mock.Mock(spec=pvm_lpar.LPAR)
+
+        # Should return both veas, though second has no vswitch id
+        # This test is applicable for listing VNIC vifs.
+        self.assertEqual([vea1, vea2],
+                         utils._find_vifs('adap', mock_vif_class, lpar, [0]))
+
     @mock.patch('pypowervm.tasks.partition.get_partitions')
     @mock.patch('networking_powervm.plugins.ibm.agent.powervm.utils.'
                 '_find_vifs')
