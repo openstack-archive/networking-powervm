@@ -277,7 +277,7 @@ def _find_vifs(adapter, vif_class, vm_wrap, vs_exclu):
         return [vif for vif in vif_list if
                 ((isinstance(vm_wrap, pvm_lpar.LPAR)
                   or not getattr(vif, 'is_tagged_vlan_supported', False))
-                 and not getattr(vif, 'vswitch_id') in vs_exclu)]
+                 and getattr(vif, 'vswitch_id', None) not in vs_exclu)]
     except pvm_exc.HttpError as e:
         # If it is a 404 (not found) then just skip.
         if e.response is not None and e.response.status == 404:
