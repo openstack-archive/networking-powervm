@@ -19,6 +19,7 @@ import mock
 from oslo_config import cfg
 from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp
+from pypowervm.tasks import partition as pvm_par
 
 from networking_powervm.plugins.ibm.agent.powervm import agent_base
 from networking_powervm.tests.unit.plugins.ibm.powervm import base
@@ -96,6 +97,8 @@ class TestAgentBaseInit(base.BasePVMTestCase):
         # setup_adapter override was invoked
         self.agt.setup_adapter_called.assert_called_once_with()
         self.sysget.assert_called_once_with(self.adpt.return_value)
+        pvm_par.validate_vios_ready.assert_called_once_with(
+            self.adpt.return_value)
         self.assertEqual(self.sys, self.agt.msys)
         self.assertEqual(self.sys.uuid, self.agt.host_uuid)
         self.agt.parse_bridge_mappings.assert_called_once_with()

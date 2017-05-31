@@ -30,6 +30,7 @@ from neutron_lib import context as ctx
 from pypowervm import adapter as pvm_adpt
 from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp
+from pypowervm.tasks import partition as pvm_par
 from pypowervm.wrappers import event as pvm_evt
 from pypowervm.wrappers import managed_system as pvm_ms
 
@@ -256,6 +257,9 @@ class BasePVMNeutronAgent(object):
         self.setup_adapter()
         self.msys = pvm_ms.System.get(self.adapter)[0]
         self.host_uuid = self.msys.uuid
+
+        # Make sure the Virtual I/O Server(s) are available.
+        pvm_par.validate_vios_ready(self.adapter)
 
         # Get the bridge mappings
         self.br_map = self.parse_bridge_mappings()
