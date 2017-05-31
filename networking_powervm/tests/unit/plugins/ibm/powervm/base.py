@@ -22,6 +22,7 @@ import os
 import shutil
 
 from networking_powervm.plugins.ibm.agent.powervm import prov_req
+from pypowervm.tasks import partition as pvm_par
 
 
 def mk_preq(action, mac, segment_id=None, phys_network=None,
@@ -60,6 +61,7 @@ class AgentFx(fixtures.Fixture):
         self.veh = self.useFixture(fixtures.MockPatch(
             'networking_powervm.plugins.ibm.agent.powervm.agent_base.'
             'VIFEventHandler')).mock
+        pvm_par.validate_vios_ready = mock.Mock()
 
 
 class BasePVMTestCase(base.BaseTestCase):
