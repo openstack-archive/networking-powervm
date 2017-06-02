@@ -48,8 +48,8 @@ class BaseTestPvmMechDriver(base.BasePVMTestCase):
         Covers get_allowed_network_types and physnet_in_mappings.
 
         :param supp_net_types: Set of network type strings (see
-                               neutron.plugins.common.constants.TYPE_*)
-                               supported by the mech driver.
+                               neutron_lib.constants.TYPE_*) supported by the
+                               mech driver.
         """
         all_net_types = {'flat', 'vlan', 'geneve', 'gre', 'local', 'vxlan',
                          'none'}

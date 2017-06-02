@@ -42,7 +42,7 @@ class PvmSRIOVMechanismDriver(mech_pvm_base.PvmMechanismDriverBase):
         This mechanism driver supports only VLAN and FLAT network types.
 
         :param agent: Not used
-        :return: List of neutron.plugins.common.constants.TYPE_* strings.
+        :return: List of neutron_lib.constants.TYPE_* strings.
         """
         return [p_constants.TYPE_FLAT, p_constants.TYPE_VLAN]
 

@@ -56,6 +56,6 @@ class PvmSEAMechanismDriver(mech_pvm_base.PvmMechanismDriverBase):
         The SEA agent supports only the VLAN network type.
 
         :param agent: Not used
-        :return: List of neutron.plugins.common.constants.TYPE_* strings.
+        :return: List of neutron_lib.constants.TYPE_* strings.
         """
         return [p_constants.TYPE_VLAN]
