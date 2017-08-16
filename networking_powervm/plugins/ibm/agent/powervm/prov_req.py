@@ -14,7 +14,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 """ProvisionRequest class and related artifacts."""
-import six
 import time
 
 from neutron.conf.agent import common as a_config
@@ -117,7 +116,7 @@ class ProvisionRequest(object):
         device_details = {dev.get('mac_address'): dev for dev in
                           agent.get_devices_details_list(macs)}
         ret = []
-        for lpar, viflist in six.iteritems(lpar_vif_map):
+        for lpar, viflist in lpar_vif_map.items():
             for vif_w in viflist:
                 mac = utils.norm_mac(vif_w.mac)
                 if mac not in device_details:
