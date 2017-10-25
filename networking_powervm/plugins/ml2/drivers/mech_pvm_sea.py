@@ -14,8 +14,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.plugins.ml2 import driver_api as api
 from neutron_lib import constants as p_constants
+from neutron_lib.plugins.ml2 import api
 from oslo_log import log
 
 from networking_powervm.plugins.ibm.agent.powervm import constants as pconst

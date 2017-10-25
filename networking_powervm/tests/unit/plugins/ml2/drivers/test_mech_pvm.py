@@ -16,11 +16,11 @@
 
 import mock
 
+from neutron_lib.plugins.ml2 import api
+
 from networking_powervm.plugins.ml2.drivers import mech_pvm_sea
 from networking_powervm.plugins.ml2.drivers import mech_pvm_sriov
 from networking_powervm.tests.unit.plugins.ibm.powervm import base
-
-from neutron.plugins.ml2 import driver_api as api
 
 
 class BaseTestPvmMechDriver(base.BasePVMTestCase):
