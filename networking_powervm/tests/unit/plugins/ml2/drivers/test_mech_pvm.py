@@ -1,4 +1,4 @@
-# Copyright 2014, 2017 IBM Corp.
+# Copyright 2014, 2018 IBM Corp.
 #
 # All Rights Reserved.
 #
@@ -164,7 +164,7 @@ class TestPvmSriovMechDriver(BaseTestPvmMechDriver):
         self.bad_bind_segment_for_agent()
         self.good_bind_segment_for_agent(mock_cvd)
 
-    def test_vif_details(self):
+    def test_vif_details_defaults(self):
         # No profile in context, mismatched network in segment
         self.segment['physical_network'] = 'bogus_net'
         vif_dets = self.verify_vif_details()
@@ -175,13 +175,17 @@ class TestPvmSriovMechDriver(BaseTestPvmMechDriver):
         self.assertEqual(4, vif_dets['redundancy'])
         # platform default capacity
         self.assertIsNone(vif_dets['capacity'])
+        self.assertIsNone(vif_dets['maxcapacity'])
 
+    def test_vif_details_default_capacity(self):
         # Ensure non-None capacity default comes through
+        self.segment['physical_network'] = 'bogus_net'
         self.agent['configurations']['default_capacity'] = '0.04'
         vif_dets = self.verify_vif_details()
         self.assertEqual(0.04, vif_dets['capacity'])
         self.assertEqual('bogus_net', vif_dets['physical_network'])
 
+    def test_vif_details_proper_values(self):
         # Now with proper values set in profile & segment
         self.segment['physical_network'] = 'the_other_network'
         self.context.current = {'binding:profile': {'vnic_required_vfs': "10",
@@ -191,3 +195,19 @@ class TestPvmSriovMechDriver(BaseTestPvmMechDriver):
         self.assertEqual(10, vif_dets['redundancy'])
         self.assertEqual(0.16, vif_dets['capacity'])
         self.assertEqual('the_other_network', vif_dets['physical_network'])
+        # If no maximum capacity is specified in binding profile, vif should
+        # contain maxcapacity as None
+        self.assertIsNone(vif_dets['maxcapacity'])
+
+    def test_vif_details_max_capacity(self):
+        # Both capacity and maximum capacity can be specified in binding
+        # profile. Ensure mechanism driver pushes maximum capacity into vif
+        # details
+        self.segment['physical_network'] = 'data1'
+        self.context.current = {'binding:profile': {'vnic_required_vfs': "10",
+                                                    'maxcapacity': "0.75",
+                                                    'capacity': "0.16"}}
+        vif_dets = self.verify_vif_details()
+        self.assertEqual(10, vif_dets['redundancy'])
+        self.assertEqual(0.16, vif_dets['capacity'])
+        self.assertEqual(0.75, vif_dets['maxcapacity'])

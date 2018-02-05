@@ -1,4 +1,4 @@
-# Copyright 2014, 2017 IBM Corp.
+# Copyright 2014, 2018 IBM Corp.
 #
 # All Rights Reserved.
 #
@@ -84,4 +84,12 @@ class PvmSRIOVMechanismDriver(mech_pvm_base.PvmMechanismDriverBase):
             # cap may be None or 'None' at this point, depending on the source.
             vif_details['capacity'] = None
 
+        # Max Capacity: from binding:profile. If not specified, it is
+        # set to None
+        maxcap = profile.get('maxcapacity')
+        try:
+            vif_details['maxcapacity'] = float(maxcap)
+        except (TypeError, ValueError):
+            # cap may be None or 'None' at this point, depending on the source.
+            vif_details['maxcapacity'] = None
         return vif_details
