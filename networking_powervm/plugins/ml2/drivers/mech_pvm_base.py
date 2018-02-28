@@ -16,9 +16,9 @@
 
 import copy
 
-from neutron.common import topics
 from neutron.plugins.ml2.drivers import mech_agent
 from neutron.plugins.ml2 import rpc
+from neutron_lib.agent import topics
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.plugins.ml2 import api
 from oslo_log import log
