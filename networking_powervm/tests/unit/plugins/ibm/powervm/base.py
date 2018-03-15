@@ -91,9 +91,7 @@ class BasePVMTestCase(base.BaseTestCase):
         # store the file in temporarily for the tests.
         # Start with the source path.
         tests = os.path.split(base.__file__)[0]
-        neutron_src = os.path.split(tests)[0]
-        neutron = os.path.split(neutron_src)[0]
-        policy_json = os.path.join(neutron, 'etc/policy.json')
+        policy_json = os.path.join(tests, 'etc/policy.json')
 
         # Get the copy to path
         home_path = os.path.abspath(os.path.expanduser('~'))
