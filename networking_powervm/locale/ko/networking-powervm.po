@@ -1,23 +1,23 @@
-# Translations template for networking-powervm.
-# Copyright 2015, 2017 IBM Corp.
+# English translations for networking-powervm.
+# Copyright (C) 2018 ORGANIZATION
 # This file is distributed under the same license as the networking-powervm
 # project.
-# Automatically generated, 2017.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 5.0.0\n"
+"Project-Id-Version: networking-powervm 6.0.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2017-10-03 04:25-0400\n"
-"PO-Revision-Date: 2017-10-03 04:25-0400\n"
-"Last-Translator: Automatically generated\n"
-"Language-Team: none\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.1\n"
-"Language: en_US\n"
+"POT-Creation-Date: 2018-03-19 18:21-0400\n"
+"PO-Revision-Date: 2018-03-19 18:21-0400\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
 "Plural-Forms: nplurals=1; plural=0;"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:48
 msgid ""
@@ -29,28 +29,29 @@ msgstr ""
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:51
 msgid ""
-"The number of seconds the agent should wait between heal/optimize intervals."
+"The number of seconds the agent should wait between heal/optimize "
+"intervals."
 msgstr ""
-"에이전트가 복구/최적화 간격 사이에 대기해야 하는 초 수입니다."
+"에이전트가 heal/최적화 간격 사이에 대기해야 하는 "
+"간격"
 
 #: networking_powervm/plugins/ibm/agent/powervm/sriov_agent.py:39
-msgid ""
-"Redundancy level for SR-IOV backed vNIC attachments. Minimum value is 1."
-msgstr ""
-"SR-IO가 지원되는 vNIC 첨부 파일의 중복성 레벨입니다. 최소값은 1입니다."
+msgid "Redundancy level for SR-IOV backed vNIC attachments. Minimum value is 1."
+msgstr "SR-IO가 지원되는 vNIC 첨부 파일의 중복성 레벨입니다. 최소값은 1입니다."
 
 #: networking_powervm/plugins/ibm/agent/powervm/sriov_agent.py:42
 msgid ""
-"Float up to 4dp between 0.0000 and 1.0000 indicating the minimum guaranteed "
-"capacity of the VFs backing an SR-IOV vNIC.  Must be a multiple of each "
-"physical port's minimum capacity granularity.  If omitted, defaults to the "
-"minimum capacity granularity for each port."
+"Float up to 4dp between 0.0000 and 1.0000 indicating the minimum "
+"guaranteed capacity of the VFs backing an SR-IOV vNIC.  Must be a "
+"multiple of each physical port's minimum capacity granularity.  If "
+"omitted, defaults to the minimum capacity granularity for each port."
 msgstr ""
 "Float 유형이 0.0000 - 1.0000 사이에서 최대 4DP까지이며 SR-IOV "
-"vNIC를 지원하는 VF의 최소 보장 용량을 표시합니다. 각 물리적 포트의 "
-"최소 용량 단위의 배수여야 합니다. 생략하는 경우, 기본값은 "
-"각 포트에 대한 최소 용량 단위입니다. "
+"vNIC를 지원하는 VF의 최소 보장 용량을 표시합니다. 각 물리적 "
+"포트의 최소 용량 단위의 배수여야 합니다. 만일 생략되면 "
+"각 포트에 대한 최소 용량 단위가 기본값으로 설정됩니다. "
 
-# ENGL1SH_VERS10N 61982_2 DO NOT REMOVE OR CHANGE THIS LINE
+
+# ENGL1SH_VERS10N 06192_2 DO NOT REMOVE OR CHANGE THIS LINE
 # T9N_SRC_ID 52
-# T9N_SH1P_STR1NG VC140AAP001 2
+# T9N_SH1P_STR1NG VC141AAP001 1
