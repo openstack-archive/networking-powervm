@@ -1,23 +1,23 @@
-# Translations template for networking-powervm.
-# Copyright 2015, 2017 IBM Corp.
+# English translations for networking-powervm.
+# Copyright (C) 2018 ORGANIZATION
 # This file is distributed under the same license as the networking-powervm
 # project.
-# Automatically generated, 2017.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: networking-powervm 5.0.0\n"
+"Project-Id-Version: networking-powervm 6.0.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2017-10-03 04:25-0400\n"
-"PO-Revision-Date: 2017-10-03 04:25-0400\n"
-"Last-Translator: Automatically generated\n"
-"Language-Team: none\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.1\n"
-"Language: en_US\n"
+"POT-Creation-Date: 2018-03-19 18:21-0400\n"
+"PO-Revision-Date: 2018-03-19 18:21-0400\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
 "Plural-Forms: nplurals=2; plural=n != 1;"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:48
 msgid ""
@@ -29,28 +29,29 @@ msgstr ""
 
 #: networking_powervm/plugins/ibm/agent/powervm/agent_base.py:51
 msgid ""
-"The number of seconds the agent should wait between heal/optimize intervals."
+"The number of seconds the agent should wait between heal/optimize "
+"intervals."
 msgstr ""
-"Il numero di secondi in cui l'agent resterà in attesa tra gli intervalli di ripristino/ottimizzazione."
+"Il numero di secondi in cui l'agent resterà in attesa tra gli "
+"intervalli di ripristino/ottimizzazione."
 
 #: networking_powervm/plugins/ibm/agent/powervm/sriov_agent.py:39
-msgid ""
-"Redundancy level for SR-IOV backed vNIC attachments. Minimum value is 1."
-msgstr ""
-"Livello di ridondanza per gli allegati vNIC con supporto di SR-IOV- Il valore minimo è 1."
+msgid "Redundancy level for SR-IOV backed vNIC attachments. Minimum value is 1."
+msgstr "Livello di ridondanza per gli allegati vNIC con supporto di SR-IOV- Il valore minimo è 1."
 
 #: networking_powervm/plugins/ibm/agent/powervm/sriov_agent.py:42
 msgid ""
-"Float up to 4dp between 0.0000 and 1.0000 indicating the minimum guaranteed "
-"capacity of the VFs backing an SR-IOV vNIC.  Must be a multiple of each "
-"physical port's minimum capacity granularity.  If omitted, defaults to the "
-"minimum capacity granularity for each port."
+"Float up to 4dp between 0.0000 and 1.0000 indicating the minimum "
+"guaranteed capacity of the VFs backing an SR-IOV vNIC.  Must be a "
+"multiple of each physical port's minimum capacity granularity.  If "
+"omitted, defaults to the minimum capacity granularity for each port."
 msgstr ""
-"Valore a virgola mobile fino a 4 posizioni decimali tra 0,0000 e 1,0000 che indica la capacità minima "
-"garantita delle VF che supportano un vNIC SR-IOV.  Deve essere un multiplo della "
-"granularità della capacità minima di ciascuna porta fisica.  Se viene omesso, viene utilizzata per impostazione predefinita la "
-"granularità della capacità minima per ciascuna porta."
+"Valore a virgola mobile fino a 4 posizioni decimali tra 0,0000 e 1,0000 che indica la capacità "
+"minima garantita delle VF che supportano un vNIC SR-IOV.  Deve essere un "
+"multiplo della granularità della capacità minima di ciascuna porta fisica.  Se "
+"omesso, il valore predefinito corrisponderà alla granularità della capacità minima per ciascuna porta."
 
-# ENGL1SH_VERS10N 61982_2 DO NOT REMOVE OR CHANGE THIS LINE
+
+# ENGL1SH_VERS10N 06192_2 DO NOT REMOVE OR CHANGE THIS LINE
 # T9N_SRC_ID 52
-# T9N_SH1P_STR1NG VC140AAP001 2
+# T9N_SH1P_STR1NG VC141AAP001 1
