@@ -14,16 +14,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import eventlet
 import sys
 
-eventlet.monkey_patch()
-
-from oslo_config import cfg
-from oslo_log import log as logging
-
+import eventlet
 from neutron.common import config as n_config
 from neutron.conf.agent import common as a_config
+from oslo_config import cfg
+from oslo_log import log as logging
 from pypowervm.tasks import network_bridger as net_br
 from pypowervm.wrappers import logical_partition as pvm_lpar
 from pypowervm.wrappers import network as pvm_net
@@ -33,6 +30,8 @@ from networking_powervm.plugins.ibm.agent.powervm import constants as p_const
 from networking_powervm.plugins.ibm.agent.powervm import prov_req as preq
 from networking_powervm.plugins.ibm.agent.powervm import utils
 
+
+eventlet.monkey_patch()
 
 LOG = logging.getLogger(__name__)
 

@@ -15,18 +15,17 @@
 #    under the License.
 
 import abc
-import eventlet
 import time
 
-from oslo_config import cfg
-from oslo_log import log as logging
-from oslo_service import loopingcall
-
+import eventlet
 from neutron.agent import rpc as agent_rpc
 from neutron.conf.agent import common as a_config
 from neutron_lib.agent import topics
 from neutron_lib import constants as q_const
 from neutron_lib import context as ctx
+from oslo_config import cfg
+from oslo_log import log as logging
+from oslo_service import loopingcall
 from pypowervm import adapter as pvm_adpt
 from pypowervm.helpers import log_helper as log_hlp
 from pypowervm.helpers import vios_busy as vio_hlp

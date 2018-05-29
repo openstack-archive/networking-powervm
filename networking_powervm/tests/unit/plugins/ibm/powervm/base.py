@@ -14,15 +14,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.tests import base
-
-import fixtures
-import mock
 import os
 import shutil
 
-from networking_powervm.plugins.ibm.agent.powervm import prov_req
+import fixtures
+import mock
+from neutron.tests import base
 from pypowervm.tasks import partition as pvm_par
+
+from networking_powervm.plugins.ibm.agent.powervm import prov_req
 
 
 def mk_preq(action, mac, segment_id=None, phys_network=None,

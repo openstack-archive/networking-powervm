@@ -14,9 +14,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import eventlet
 import sys
 
+import eventlet
 from neutron.common import config as n_config
 from neutron.conf.agent import common as a_config
 from oslo_config import cfg
