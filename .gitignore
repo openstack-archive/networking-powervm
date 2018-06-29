@@ -9,3 +9,6 @@ doc/build
 AUTHORS
 ChangeLog
 .venv
+.coverage
+/.stestr/
+/cover/
