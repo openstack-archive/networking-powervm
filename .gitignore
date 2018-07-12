@@ -1,5 +1,4 @@
 /build/
-.testrepository
 .tox/
 networking_powervm.egg-info/
 *.pyc
