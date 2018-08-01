@@ -359,7 +359,8 @@ class BasePVMNeutronAgent(object):
         :return: The device from neutron.
         """
         return self.plugin_rpc.get_device_details(
-            self.context, utils.norm_mac(device_mac), self.agent_id)
+            self.context, utils.norm_mac(device_mac), self.agent_id,
+            host=cfg.CONF.host)
 
     def get_devices_details_list(self, device_macs):
         """Returns list of neutron devices for a list of mac addresses.

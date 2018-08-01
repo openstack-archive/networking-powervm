@@ -167,7 +167,8 @@ class TestAgentBaseInit(base.BasePVMTestCase):
         self.agt.get_device_details('mac')
         mock_mac.assert_called_once_with('mac')
         self.agt.plugin_rpc.get_device_details.assert_called_once_with(
-            self.agt.context, mock_mac.return_value, self.agt.agent_id)
+            self.agt.context, mock_mac.return_value, self.agt.agent_id,
+            host=cfg.CONF.host)
         # get_devices_details_list
         mock_mac.reset_mock()
         mock_mac.side_effect = ['mac1', 'mac2', 'mac3']
