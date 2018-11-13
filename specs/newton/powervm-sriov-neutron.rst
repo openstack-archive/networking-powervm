@@ -43,7 +43,7 @@ validations.
 
 Proposed change
 ===============
-The changes will be made in in two areas:
+The changes will be made in two areas:
 
 1. ML2 driver: SR-IOV Mechanism driver:
 A new mechanism driver will be developed that supports both 'VLAN' and 'FLAT'
