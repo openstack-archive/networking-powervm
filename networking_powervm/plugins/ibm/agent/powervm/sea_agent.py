@@ -197,7 +197,7 @@ class SharedEthernetNeutronAgent(agent_base.BasePVMNeutronAgent):
             # To determine the ones no longer needed, subtract from all the
             # VLANs the ones that are no longer needed.
             vlans_to_del = existing_vlans - req_vlans
-            for vlan_to_del in vlans_to_del:
+            for vlan_to_del in sorted(vlans_to_del):
                 if cur_delete < 3:
                     LOG.warning("Cleaning up VLAN %s from the system. It is "
                                 "no longer in use.", vlan_to_del)
