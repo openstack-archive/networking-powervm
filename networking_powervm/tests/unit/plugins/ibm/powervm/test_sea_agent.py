@@ -159,11 +159,7 @@ class SEAAgentTest(base.BasePVMTestCase):
         # Mock a provision request
         mock_get_nb_and_vlan.return_value = ('nb2_uuid', 23)
 
-        # Mock up network bridges.  VLANs 44, 45, and 46 should be deleted
-        # as they are not required by anything.  VLAN 47 should be needed
-        # as it is in the pending list.  VLAN 48 should be deleted, but will
-        # put over the three delete max count (and therefore would be hit in
-        # next pass)
+        # Mock up network bridges.
         mock_nb1 = fake_nb('nb_uuid', 20, [], [])
         mock_nb2 = fake_nb('nb2_uuid', 40, [41, 42, 43], [44, 45, 46, 47, 48])
         mock_list_bridges.return_value = [mock_nb1, mock_nb2]
@@ -190,26 +186,43 @@ class SEAAgentTest(base.BasePVMTestCase):
                        mock_vs_map.return_value) for cna in (cna1, cna2)],
             any_order=True)
 
-        # One remove call per net bridge.
+        # One remove call per net bridge, up to a max of 3.
+        self.assertEqual(3, mock_nbr_remove.call_count)
+        # VLANs 44, 45, 46, 47, and 48 are not required by anything, so the
+        # first three of those should be deleted
         mock_nbr_remove.assert_has_calls(
             [mock.call(
                 self.agent.adapter, self.agent.host_uuid, 'nb2_uuid', vlan)
-             for vlan in (44, 45, 48)], any_order=True)
+             for vlan in (44, 45, 46)], any_order=True)
+        # Update mocks to show 44, 45, and 46 were removed
+        mock_nb2 = fake_nb('nb2_uuid', 40, [41, 42, 43], [47, 48])
+        mock_list_bridges.return_value = [mock_nb1, mock_nb2]
+        mock_find_nb_for_cna.return_value = mock_nb2
 
-        # Validate no remove.
+        # Validate no removes if we disable cleanup.
         mock_nbr_remove.reset_mock()
         mock_prov_devs.reset_mock()
-        # Set that we can't do the clean up
         cfg.CONF.set_override('automated_powervm_vlan_cleanup', False,
                               group='AGENT')
-
         # Invoke
         self.agent.heal_and_optimize()
-
         # Verify.  One ensure call per net bridge.  Zero for the remove as that
         # has been flagged to not clean up.
         mock_nbr_remove.assert_not_called()
         mock_prov_devs.assert_called_with([preq1, preq2, preq3])
+
+        # Now change the CONF back and validate we can remove the remainder
+        cfg.CONF.set_override('automated_powervm_vlan_cleanup', True,
+                              group='AGENT')
+        # Invoke
+        self.agent.heal_and_optimize()
+        # Should only be two left to remove
+        self.assertEqual(2, mock_nbr_remove.call_count)
+        # VLANs 47, and 48 should be the ones that are removed
+        mock_nbr_remove.assert_has_calls(
+            [mock.call(
+                self.agent.adapter, self.agent.host_uuid, 'nb2_uuid', vlan)
+             for vlan in (47, 48)], any_order=True)
 
     def test_get_nb_and_vlan(self):
         """Be sure nb uuid and vlan parsed from dev properly."""
