@@ -1,4 +1,4 @@
-# Copyright 2014, 2017 IBM Corp.
+# Copyright IBM Corp. and contributors
 #
 # All Rights Reserved.
 #
@@ -13,9 +13,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-
-import os
-import shutil
 
 import fixtures
 import mock
@@ -67,35 +64,6 @@ class AgentFx(fixtures.Fixture):
 class BasePVMTestCase(base.BaseTestCase):
     """The base PowerVM Test case."""
 
-    def setUp(self):
-        super(BasePVMTestCase, self).setUp()
-
-        # We need to try to copy over the policy.json.  Some neutron
-        # modules load it, but since we start in a different location
-        # we lose its context...  Copying will bring it in.
-        policy_json, to = self._get_policy_paths()
-        if not os.path.exists(to):
-            shutil.copyfile(policy_json, to)
-
-    def tearDown(self):
-        super(BasePVMTestCase, self).tearDown()
-
-        # Remove the policy now that it is no longer used.
-        policy_json, to = self._get_policy_paths()
-        if os.path.exists(to):
-            os.remove(to)
-
-    @staticmethod
-    def _get_policy_paths():
-        # Returns the source policy path from neutron and a target path to
-        # store the file in temporarily for the tests.
-        # Start with the source path.
-        tests = os.path.split(base.__file__)[0]
-        policy_json = os.path.join(tests, 'etc/policy.json')
-
-        # Get the copy to path
-        home_path = os.path.abspath(os.path.expanduser('~'))
-        to = os.path.join(home_path, 'policy.json')
-
-        # return the two
-        return policy_json, to
+    # TODO(edmondsw): When neutron-lib exposes a BaseTestClass we should
+    # switch to that so that we are no longer importing from neutron, which
+    # is prohibited by hacking rule N530
