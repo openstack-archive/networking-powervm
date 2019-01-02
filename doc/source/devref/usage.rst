@@ -114,6 +114,12 @@ file.
 |                                  |       | the capacity for each VF to its backing physical       |
 |                                  |       | port's minimum capacity granularity. [#]_              |
 +----------------------------------+-------+--------------------------------------------------------+
+| heal_and_optimize_interval = 1800|  ALL  | (Integer) The number of seconds the agent should wait  |
+|                                  |       | between heal/optimize intervals.                       |
++----------------------------------+-------+--------------------------------------------------------+
+| exception_interval = 5           |  ALL  | (Integer) The number of seconds agent will wait between|
+|                                  |       | polling when exception is caught.                      |
++----------------------------------+-------+--------------------------------------------------------+
 
 .. [#] For more details on SR-IOV logical port capacity, see section 1.3.3 of the
        `IBM Power Systems SR-IOV Technical Overview and Introduction <https://www.redbooks.ibm.com/redpapers/pdfs/redp5065.pdf>`_.
