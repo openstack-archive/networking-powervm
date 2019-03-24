@@ -34,7 +34,7 @@ Getting the code
 
 Grab the code::
 
-    git clone git://git.openstack.org/openstack/networking-powervm
+    git clone https://git.openstack.org/openstack/networking-powervm
     cd networking-powervm
 
 Setting up your environment
