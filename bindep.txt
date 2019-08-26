@@ -1,0 +1,25 @@
+# This is a cross-platform list tracking distribution packages needed for install and tests;
+# see https://docs.openstack.org/infra/bindep/ for additional information.
+
+build-essential [platform:dpkg test]
+gcc [platform:rpm test]
+# gettext and graphviz are needed by doc builds only. For transition,
+# have them in both doc and test.
+# TODO(jaegerandi): Remove test once infra scripts are updated.
+gettext [doc test]
+graphviz [doc test]
+language-pack-en [platform:ubuntu]
+libxml2-dev [platform:dpkg test]
+libxslt-devel [platform:rpm test]
+libxslt1-dev [platform:dpkg test]
+locales [platform:debian]
+pkg-config [platform:dpkg test]
+pkgconfig [platform:rpm test]
+python-dev [platform:dpkg test]
+python-devel [platform:rpm test]
+python3-all [platform:dpkg]
+python3-all-dev [platform:dpkg]
+python3-devel [platform:fedora]
+python34-devel [platform:centos]
+libpcre3-dev [platform:dpkg test]
+pcre-devel [platform:rpm test]
