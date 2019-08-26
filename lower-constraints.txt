@@ -39,6 +39,7 @@ keystonemiddleware==4.17.0
 kombu==4.0.0
 linecache2==1.0.0
 logutils==0.3.5
+libxml2-python3==2.9.5
 lxml==3.4.1
 Mako==0.4.0
 MarkupSafe==1.0
