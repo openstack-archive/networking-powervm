@@ -1,7 +1,7 @@
 - project:
     templates:
       - check-requirements
-      - openstack-lower-constraints-jobs
+      - openstack-lower-constraints-jobs-neutron
       - openstack-python-jobs-neutron
       - openstack-python35-jobs-neutron
       - openstack-python36-jobs-neutron
