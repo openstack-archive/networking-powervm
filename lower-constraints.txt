@@ -17,7 +17,7 @@ decorator==3.4.0
 deprecation==1.0
 docutils==0.11
 dogpile.cache==0.6.2
-eventlet==0.18.2
+eventlet==0.31.0
 extras==1.0.0
 fasteners==0.7.0
 fixtures==3.0.0
