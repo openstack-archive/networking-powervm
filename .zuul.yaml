@@ -1,7 +1,0 @@
-- project:
-    templates:
-      - check-requirements
-      - openstack-lower-constraints-jobs
-      - openstack-python-jobs-neutron
-      - openstack-python3-train-jobs-neutron
-      - periodic-stable-jobs-neutron
